@@ -1,0 +1,2 @@
+ALTER TABLE service_prices
+ADD COLUMN title TEXT NOT NULL DEFAULT '';

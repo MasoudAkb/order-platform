@@ -1,0 +1,463 @@
+@base=http://127.0.0.1:8787
+
+@adminPhone=09120000000
+@adminPassword=123456
+
+@userPhone=09121111111
+@userPassword=12345
+
+
+### ==================================
+### 1) Login Admin
+### ==================================
+
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{
+  "phone":"{{adminPhone}}",
+  "password":"{{adminPassword}}"
+}
+
+
+### بعد از اجرا توکن را اینجا قرار بده
+@adminToken=eyJhbGciOiJIUzI1NiJ9.eyJpZCI6MSwicGhvbmUiOiIwOTEyMDAwMDAwMCIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc4NTg1NTI4MywiZXhwIjoxNzg2NDYwMDgzfQ.cVP_HaKY1fuptLy2ioL_tx5lzolsJkFv7cHSnK5xbUQ
+
+
+
+### ==================================
+### 2) Login Customer
+### ==================================
+
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{
+  "phone":"{{userPhone}}",
+  "password":"{{userPassword}}"
+}
+
+
+### بعد از اجرا توکن را اینجا قرار بده
+@userToken=eyJhbGciOiJIUzI1NiJ9.eyJpZCI6MiwicGhvbmUiOiIwOTEyMTExMTExMSIsInJvbGUiOiJjdXN0b21lciIsImlhdCI6MTc4NTg1NTMyNSwiZXhwIjoxNzg2NDYwMTI1fQ.e_t1alPGC8FMfG1ioMbf5b76z_8Tl1LlwtaLjdbtjJM
+
+
+
+### ==================================
+### 3) دریافت پروفایل / تست احراز
+### ==================================
+
+GET {{base}}/wallet
+Authorization: Bearer {{userToken}}
+
+
+
+### ==================================
+### 4) ساخت سفارش جدید
+### ==================================
+
+POST {{base}}/orders
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "title":"تست کامل سیستم",
+  "description":"تست مسیر کامل سفارش"
+}
+
+
+### سفارش ساخته شده id را اینجا بگذار
+@orderId=8
+
+
+
+### ==================================
+### 5) لیست سفارش‌های مشتری
+### ==================================
+
+GET {{base}}/orders/history
+Authorization: Bearer {{userToken}}
+
+
+
+
+### ==================================
+### 6) لیست سفارش‌های ادمین
+### ==================================
+
+GET {{base}}/admin/orders
+Authorization: Bearer {{adminToken}}
+
+
+
+
+### ==================================
+### 7) جزئیات سفارش ادمین
+### ==================================
+
+GET {{base}}/admin/orders/{{orderId}}
+Authorization: Bearer {{adminToken}}
+
+
+
+
+
+### ==================================
+### 8) تعیین قیمت
+### ==================================
+
+PATCH {{base}}/admin/orders/{{orderId}}/price
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "price":500000
+}
+
+
+
+
+### ==================================
+### 9) تایید سفارش
+### ==================================
+
+POST {{base}}/admin/orders/{{orderId}}/approve
+Authorization: Bearer {{adminToken}}
+
+
+
+
+
+### ==================================
+### 10) تکمیل سفارش
+### ==================================
+
+POST {{base}}/admin/orders/{{orderId}}/complete
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "result":"تعمیر با موفقیت انجام شد"
+}
+
+
+
+
+
+### ==================================
+### 11) بررسی سفارش مشتری
+### ==================================
+
+GET {{base}}/orders/{{orderId}}
+Authorization: Bearer {{userToken}}
+
+
+
+
+
+### ==================================
+### 12) کیف پول مشتری
+### ==================================
+
+GET {{base}}/wallet
+Authorization: Bearer {{userToken}}
+
+
+
+
+
+### ==================================
+### 13) نوتیفیکیشن مشتری
+### ==================================
+
+GET {{base}}/notifications
+Authorization: Bearer {{userToken}}
+
+
+
+
+
+### ==================================
+### 14) خواندن یک نوتیف
+### ==================================
+
+PATCH {{base}}/notifications/1/read
+Authorization: Bearer {{userToken}}
+
+
+
+
+
+### ==================================
+### 15) خواندن همه نوتیف‌ها
+### ==================================
+
+PATCH {{base}}/notifications/read-all
+Authorization: Bearer {{userToken}}
+
+
+
+
+
+### ==================================
+### 16) داشبورد ادمین
+### ==================================
+
+GET {{base}}/admin/dashboard
+Authorization: Bearer {{adminToken}}
+
+
+
+
+
+### ==================================
+### 17) تراکنش‌های کیف پول ادمین
+### ==================================
+
+GET {{base}}/admin/wallet
+Authorization: Bearer {{adminToken}}
+
+### ==================================
+### 17) تراکنش‌های کیف پول ادمین
+### ==================================
+
+GET {{base}}/admin/users
+Authorization: Bearer {{adminToken}}
+
+### ==================================
+### 17) تراکنش‌های کیف پول ادمین
+### ==================================
+
+GET {{base}}/admin/users/2
+Authorization: Bearer {{adminToken}}
+
+### ==================================
+### 17) تراکنش‌های کیف پول ادمین
+### ==================================
+
+PATCH {{base}}/admin/users/2/password
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+ "password":"123456"
+}
+
+### ==================================
+### 17) تراکنش‌های کیف پول ادمین
+### ==================================
+
+PATCH {{base}}/admin/users/2/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+ "role":"admin"
+}
+
+###
+
+GET {{base}}/services/apple_id/price
+
+#####
+
+POST {{base}}/orders/apple-id
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "email":"test@gmail.com",
+  "fullName":"Ali Ahmadi",
+  "phone":"09121111111",
+  "password":"",
+  "birthDate":"",
+  "security1":"",
+  "security2":"",
+  "security3":""
+}
+
+####
+
+GET {{base}}/admin/orders
+Authorization: Bearer {{adminToken}}
+
+####
+
+GET {{base}}/admin/orders/9
+Authorization: Bearer {{adminToken}}
+
+###
+
+GET {{base}}/services/apple_id_with_email/price
+
+###
+
+POST {{base}}/services/quote
+
+{
+ "serviceType":"apple_id_with_email"
+}
+
+
+#########
+
+POST {{base}}/orders/apple-id
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+ "email":"test@gmail.com",
+ "fullName":"Ali Ahmadi",
+ "phone":"09121111111"
+}
+
+####
+
+POST {{base}}/orders/apple-id
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+ "fullName":"Ali Ahmadi"
+}
+
+###
+
+GET {{base}}/admin/services
+Authorization: Bearer {{adminToken}}
+
+####
+
+PATCH {{base}}/admin/services/apple_id_with_email
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+ "basePrice":350000
+}
+
+####
+GET {{base}}/admin/services
+Authorization: Bearer {{adminToken}}
+####
+PATCH {{base}}/admin/services/apple_id_with_email
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "basePrice":400000,
+  "title":"ساخت اپل آیدی با ایمیل مشتری"
+}
+#####
+POST {{base}}/orders/apple-id
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "email":"",
+  "fullName":"Test Price2"
+}
+
+###
+POST {{base}}/admin/orders/13/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason":"اطلاعات مورد نیاز برای ساخت اپل آیدی کامل نیست"
+}
+
+###
+POST {{base}}/admin/orders/14/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason":"اطلاعات ناقص است"
+}
+###
+GET {{base}}/notifications
+Authorization: Bearer {{userToken}}
+
+###
+GET {{base}}/notifications
+Authorization: Bearer {{userToken}}
+
+####
+GET {{base}}/admin/orders/13
+Authorization: Bearer {{adminToken}}
+
+###
+GET {{base}}/orders/history
+Authorization: Bearer {{userToken}}
+###
+GET {{base}}/orders/13
+Authorization: Bearer {{userToken}}
+###
+
+GET {{base}}/orders/1
+Authorization: Bearer {{userToken}}
+
+###
+POST {{base}}/push/subscribe
+Authorization: Bearer {{userToken}}
+
+####
+
+POST {{base}}/push/subscribe
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "playerId":"test-player-123"
+}
+
+###
+
+POST {{base}}/admin/orders/12/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason": "تست ارسال پوش نوتیفیکیشن"
+}
+#######
+GET {{base}}/notifications
+Authorization: Bearer {{userToken}}
+########
+POST {{base}}/push-subscriptions
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "playerId":"real-test-player-001"
+}
+########
+
+POST {{base}}/auth/login
+
+{
+  "phone": "09121111111",
+  "password": "123456"
+}
+#########
+@userjToken = eyJhbGciOiJIUzI1NiJ9.eyJpZCI6Miwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzg2MDQzNDUzLCJleHAiOjE3ODY2NDgyNTN9.fdm20JCYQLAijGEJGLPkOv6asQsfH6FuMBBIwNjklLo
+######
+GET {{base}}/notifications
+Authorization: Bearer {{userjToken}}
+
+######
+GET {{base}}/auth/me
+Authorization: Bearer {{adminToken}}
+######
+POST {{base}}/orders/apple-id
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "fullName":"test",
+  "email":"test@gmail.com",
+  "price":1
+}
+
+######

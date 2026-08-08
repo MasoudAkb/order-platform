@@ -1,0 +1,23 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "order-platform-api",
+	"main": "src/index.js",
+	"compatibility_date": "2026-07-10",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"observability": {
+		"enabled": true
+	},
+	"vars": {
+		"JWT_SECRET": "change-this-to-a-long-random-string"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "order-platform-db",
+			"database_id": "c3eb3405-6787-4ea8-ab3e-812624eecb90"
+		}
+	],
+	"migrations_dir": "../../migrations"
+}

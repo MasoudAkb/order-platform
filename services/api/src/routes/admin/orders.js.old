@@ -1,0 +1,344 @@
+import { Hono } from "hono";
+import { eq, desc } from "drizzle-orm";
+
+
+import { getDb } from "../../database/db";
+
+import {
+  orders,
+  users,
+  messages,
+  orderStatusHistory
+} from "../../database/schema";
+
+
+import { authMiddleware } from "../../middleware/auth";
+import { adminMiddleware } from "../../middleware/admin";
+
+
+
+const adminOrders = new Hono();
+
+
+
+adminOrders.use("*", authMiddleware);
+adminOrders.use("*", adminMiddleware);
+
+
+
+
+
+// لیست سفارش‌ها
+// GET /admin/orders
+// GET /admin/orders?status=pending
+
+adminOrders.get("/", async (c)=>{
+
+
+  const db = getDb(c.env);
+
+
+  const status = c.req.query("status");
+
+
+
+  let result;
+
+
+
+  if(status){
+
+    result = await db
+      .select({
+
+        order: orders,
+
+        user: {
+
+          id: users.id,
+
+          name: users.name,
+
+          phone: users.phone
+
+        }
+
+      })
+      .from(orders)
+      .leftJoin(
+        users,
+        eq(orders.userId,users.id)
+      )
+      .where(
+        eq(orders.status,status)
+      )
+      .orderBy(
+        desc(orders.createdAt)
+      );
+
+
+  } else {
+
+
+    result = await db
+      .select({
+
+        order: orders,
+
+        user: {
+
+          id: users.id,
+
+          name: users.name,
+
+          phone: users.phone
+
+        }
+
+      })
+      .from(orders)
+      .leftJoin(
+        users,
+        eq(orders.userId,users.id)
+      )
+      .orderBy(
+        desc(orders.createdAt)
+      );
+
+
+  }
+
+
+
+  return c.json({
+
+    success:true,
+
+    orders:result
+
+  });
+
+
+});
+
+
+
+
+
+
+// جزئیات سفارش برای ادمین
+
+// GET /admin/orders/:id
+
+
+adminOrders.get("/:id", async (c)=>{
+
+
+  const db = getDb(c.env);
+
+
+  const orderId = Number(
+    c.req.param("id")
+  );
+
+
+
+  const orderResult = await db
+    .select({
+
+      order: orders,
+
+      user: {
+
+        id: users.id,
+
+        name: users.name,
+
+        phone: users.phone
+
+      }
+
+    })
+    .from(orders)
+    .leftJoin(
+      users,
+      eq(orders.userId,users.id)
+    )
+    .where(
+      eq(orders.id,orderId)
+    );
+
+
+
+  const data = orderResult[0];
+
+
+
+  if(!data){
+
+    return c.json({
+
+      success:false,
+
+      message:"Order not found"
+
+    },404);
+
+  }
+
+
+
+
+  const orderMessages = await db
+    .select()
+    .from(messages)
+    .where(
+      eq(messages.orderId,orderId)
+    )
+    .orderBy(
+      messages.createdAt
+    );
+
+
+
+
+  const history = await db
+    .select()
+    .from(orderStatusHistory)
+    .where(
+      eq(orderStatusHistory.orderId,orderId)
+    )
+    .orderBy(
+      orderStatusHistory.createdAt
+    );
+
+
+
+
+  return c.json({
+
+    success:true,
+
+    order:data.order,
+
+    customer:data.user,
+
+    messages:orderMessages,
+
+    history
+
+  });
+
+
+
+});
+
+
+
+
+
+
+
+
+// تعیین قیمت سفارش
+
+// PATCH /admin/orders/:id/price
+
+
+adminOrders.patch("/:id/price", async (c)=>{
+
+
+  const db = getDb(c.env);
+
+
+
+  const orderId = Number(
+    c.req.param("id")
+  );
+
+
+
+  let body;
+
+
+  try {
+
+    body = await c.req.json();
+
+  } catch {
+
+    return c.json({
+
+      success:false,
+
+      message:"Invalid JSON body"
+
+    },400);
+
+  }
+
+
+
+  const price = Number(body.price);
+
+
+
+  if(!price || price <=0){
+
+    return c.json({
+
+      success:false,
+
+      message:"Invalid price"
+
+    },400);
+
+  }
+
+
+
+  const result = await db
+    .update(orders)
+    .set({
+
+      price
+
+    })
+    .where(
+      eq(orders.id,orderId)
+    )
+    .returning();
+
+
+
+
+  if(!result[0]){
+
+    return c.json({
+
+      success:false,
+
+      message:"Order not found"
+
+    },404);
+
+  }
+
+
+
+
+  return c.json({
+
+    success:true,
+
+    order:result[0]
+
+  });
+
+
+
+});
+
+
+
+export default adminOrders;
