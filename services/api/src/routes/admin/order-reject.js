@@ -1,19 +1,12 @@
 import { Hono } from "hono";
-import { eq, and } from "drizzle-orm";
 
 import { getDb } from "../../database/db";
-
-import {
-  orders,
-  orderStatusHistory
-} from "../../database/schema";
 
 import { authMiddleware } from "../../middleware/auth";
 import { adminMiddleware } from "../../middleware/admin";
 
 import {
-  createNotificationQuery,
-  sendNotificationPush
+    sendNotificationPush,
 } from "../../utils/notification";
 
 const reject = new Hono();
@@ -26,305 +19,328 @@ reject.use("*", adminMiddleware);
 
 reject.post("/:id/reject", async (c) => {
 
-  const db = getDb(c.env);
+    const db = getDb(c.env);
+    const rawDb = db._raw;
 
-  const orderId = Number(
-    c.req.param("id")
-  );
-
-
-
-  if (!Number.isInteger(orderId)) {
-
-    return c.json({
-      success: false,
-      message: "Invalid order id"
-    }, 400);
-
-  }
-
-
-
-  const admin = c.get("user");
-
-
-
-  let body = {};
-
-  try {
-
-    body = await c.req.json();
-
-  } catch {}
-
-
-
-  /*
-   * دلیل رد سفارش اختیاری است.
-   */
-
-  const rejectReason =
-    body.rejectReason
-      ? String(body.rejectReason).trim()
-      : "";
-
-
-
-  /*
-   * پیدا کردن سفارش
-   */
-
-  const result = await db
-    .select()
-    .from(orders)
-    .where(
-      eq(
-        orders.id,
-        orderId
-      )
+    const orderId = Number(
+        c.req.param("id")
     );
 
+    if (!Number.isInteger(orderId)) {
+
+        return c.json({
+            success: false,
+            message: "Invalid order id"
+        }, 400);
+
+    }
+
+    const admin = c.get("user");
+
+    if (!admin || !admin.id) {
+
+        return c.json({
+            success: false,
+            message: "Unauthorized"
+        }, 401);
+
+    }
 
 
-  const order = result[0];
+    let body = {};
+
+    try {
+
+        body = await c.req.json();
+
+    } catch {
+        // body اختیاری است
+    }
 
 
+    const rejectReason =
+        body.rejectReason
+            ? String(body.rejectReason).trim()
+            : "";
 
-  if (!order) {
-
-    return c.json({
-      success: false,
-      message: "Order not found"
-    }, 404);
-
-  }
-
-
-
-  if (order.status !== "pending") {
-
-    return c.json({
-      success: false,
-      message:
-        "Only pending orders can be rejected"
-    }, 400);
-
-  }
-
-
-
-  const now = Date.now();
-
-
-
-  try {
 
     /*
-     * تمام تغییرات دیتابیس مربوط به Reject
-     * داخل یک transaction انجام می‌شوند.
+     * پیدا کردن سفارش
      */
 
-    const updatedOrder =
-      await db.transaction(async (tx) => {
+    const result = await rawDb
+        .prepare(`
+            SELECT *
+            FROM orders
+            WHERE id = ?
+            LIMIT 1
+        `)
+        .bind(orderId)
+        .all();
+
+    const order = result.results?.[0];
+
+
+    if (!order) {
+
+        return c.json({
+            success: false,
+            message: "Order not found"
+        }, 404);
+
+    }
+
+
+    if (order.status !== "pending") {
+
+        return c.json({
+            success: false,
+            message:
+                "Only pending orders can be rejected"
+        }, 400);
+
+    }
+
+
+    const now = Date.now();
+
+
+    const notificationBody =
+        rejectReason
+            ? `سفارش شما رد شد. دلیل: ${rejectReason}`
+            : "سفارش شما رد شد.";
+
+
+    try {
 
         /*
-         * شرط pending داخل UPDATE نیز وجود دارد
-         * تا درخواست‌های همزمان نتوانند
-         * یک سفارش را دوبار reject کنند.
+         * D1 batch:
+         *
+         * UPDATE
+         * + STATUS HISTORY
+         * + NOTIFICATION
          */
 
-        const updated = await tx
-          .update(orders)
-          .set({
+        await rawDb.batch([
 
-            status:
-              "rejected",
+            /*
+             * 1) Reject
+             */
 
-            rejectReason:
-              rejectReason || null,
-
-            updatedAt:
-              now
-
-          })
-          .where(
-            and(
-
-              eq(
-                orders.id,
-                orderId
-              ),
-
-              eq(
-                orders.status,
-                "pending"
-              )
-
-            )
-          )
-          .returning();
+            rawDb
+                .prepare(`
+                    UPDATE orders
+                    SET
+                        status = 'rejected',
+                        reject_reason = ?,
+                        updated_at = ?
+                    WHERE
+                        id = ?
+                        AND status = 'pending'
+                `)
+                .bind(
+                    rejectReason || null,
+                    now,
+                    orderId
+                ),
 
 
+            /*
+             * 2) History
+             */
 
-        if (!updated[0]) {
+            rawDb
+                .prepare(`
+                    INSERT INTO order_status_history
+                    (
+                        order_id,
+                        old_status,
+                        new_status,
+                        changed_by,
+                        created_at
+                    )
 
-          throw new Error(
-            "Order is no longer pending"
-          );
+                    SELECT
+                        id,
+                        'pending',
+                        'rejected',
+                        ?,
+                        ?
+
+                    FROM orders
+
+                    WHERE
+                        id = ?
+                        AND status = 'rejected'
+                        AND updated_at = ?
+
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM order_status_history
+                            WHERE
+                                order_id = ?
+                                AND old_status = 'pending'
+                                AND new_status = 'rejected'
+                                AND changed_by = ?
+                        )
+                `)
+                .bind(
+                    admin.id,
+                    now,
+                    orderId,
+                    now,
+                    orderId,
+                    admin.id
+                ),
+
+
+            /*
+             * 3) Notification
+             */
+
+            rawDb
+                .prepare(`
+                    INSERT INTO notifications
+                    (
+                        user_id,
+                        order_id,
+                        title,
+                        body,
+                        type,
+                        is_read,
+                        created_at
+                    )
+
+                    SELECT
+                        user_id,
+                        id,
+                        ?,
+                        ?,
+                        ?,
+                        0,
+                        ?
+
+                    FROM orders
+
+                    WHERE
+                        id = ?
+                        AND status = 'rejected'
+                        AND updated_at = ?
+
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM notifications
+                            WHERE
+                                order_id = ?
+                                AND type = 'order_rejected'
+                                AND created_at = ?
+                        )
+                `)
+                .bind(
+                    "سفارش رد شد",
+                    notificationBody,
+                    "order_rejected",
+                    now,
+                    orderId,
+                    now,
+                    orderId,
+                    now
+                )
+
+        ]);
+
+
+        /*
+         * سفارش نهایی
+         */
+
+        const updatedResult = await rawDb
+            .prepare(`
+                SELECT *
+                FROM orders
+                WHERE id = ?
+                LIMIT 1
+            `)
+            .bind(orderId)
+            .all();
+
+        const updatedOrder =
+            updatedResult.results?.[0];
+
+
+        if (!updatedOrder) {
+
+            return c.json({
+                success: false,
+                message: "Order update failed"
+            }, 500);
 
         }
 
 
+        if (updatedOrder.status !== "rejected") {
 
-        const newOrder =
-          updated[0];
+            return c.json({
+                success: false,
+                message:
+                    "Order is no longer pending"
+            }, 409);
 
-
-
-        /*
-         * ثبت تاریخچه وضعیت
-         */
-
-        await tx
-          .insert(orderStatusHistory)
-          .values({
-
-            orderId:
-              newOrder.id,
-
-            oldStatus:
-              "pending",
-
-            newStatus:
-              "rejected",
-
-            changedBy:
-              admin.id,
-
-            createdAt:
-              now
-
-          });
-
+        }
 
 
         /*
-         * متن notification
+         * Push خارج از batch
          */
 
-        const notificationBody =
-          rejectReason
+        await sendNotificationPush(
+            db,
+            {
+                userId:
+                    updatedOrder.user_id,
 
-            ? `سفارش شما رد شد. دلیل: ${rejectReason}`
+                orderId:
+                    updatedOrder.id,
 
-            : "سفارش شما رد شد.";
+                title:
+                    "سفارش رد شد",
 
+                body:
+                    notificationBody,
 
-
-        /*
-         * ثبت notification در D1
-         */
-
-        await createNotificationQuery(
-          tx,
-          {
-
-            userId:
-              newOrder.userId,
-
-            orderId:
-              newOrder.id,
-
-            title:
-              "سفارش رد شد",
-
-            body:
-              notificationBody,
-
-            type:
-              "order_rejected"
-
-          }
+                type:
+                    "order_rejected"
+            }
         );
 
 
+        return c.json({
 
-        return newOrder;
+            success: true,
 
-      });
+            order: updatedOrder
 
-
-
-    /*
-     * Transaction با موفقیت Commit شده.
-     *
-     * حالا Push را خارج از transaction می‌فرستیم.
-     */
-
-    const notificationBody =
-      rejectReason
-
-        ? `سفارش شما رد شد. دلیل: ${rejectReason}`
-
-        : "سفارش شما رد شد.";
+        });
 
 
+    } catch (error) {
 
-    await sendNotificationPush(
-      db,
-      {
+        console.error(
+            "Reject order error:",
+            error
+        );
 
-        userId:
-          updatedOrder.userId,
+        return c.json({
 
-        orderId:
-          updatedOrder.id,
+            success: false,
 
-        title:
-          "سفارش رد شد",
+            message:
+                error?.message ||
+                "خطا در رد سفارش"
 
-        body:
-          notificationBody,
+        }, 500);
 
-        type:
-          "order_rejected"
-
-      }
-    );
-
-
-
-    return c.json({
-
-      success: true,
-
-      order:
-        updatedOrder
-
-    });
-
-
-
-  } catch (error) {
-
-    console.error(
-      "Reject order error:",
-      error
-    );
-
-
-
-    return c.json({
-
-      success: false,
-
-      message:
-        error.message ||
-        "خطا در رد سفارش"
-
-    }, 500);
-
-  }
+    }
 
 });
 
