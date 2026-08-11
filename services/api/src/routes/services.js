@@ -9,7 +9,28 @@ import {
 
 const services = new Hono();
 
+// =====================================================
+// GET /services
+// دریافت لیست سرویس‌ها
+// =====================================================
+services.get("/", async (c) => {
+    const db = getDb(c.env);
 
+    const result = await db
+        .select({
+            id: servicePrices.id,
+            serviceType: servicePrices.serviceType,
+            title: servicePrices.title,
+            basePrice: servicePrices.basePrice,
+            updatedAt: servicePrices.updatedAt,
+        })
+        .from(servicePrices);
+
+    return c.json({
+        success: true,
+        services: result
+    });
+});
 // =====================================================
 // GET /services/:type
 // دریافت اطلاعات یک سرویس
