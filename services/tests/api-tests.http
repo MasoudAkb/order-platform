@@ -550,3 +550,54 @@ Content-Type: application/json
 #############
 POST {{base}}/admin/orders/19/approve
 Authorization: Bearer {{adminToken}}
+
+##########
+POST {{base}}/admin/orders/18/reject
+Authorization: Bearer {{adminToken}}
+
+{
+  "rejectReason": "اطلاعات سفارش ناقص است"
+}
+##########
+GET {{base}}/admin/orders/18/history
+Authorization: Bearer {{adminToken}}
+
+##########
+GET {{base}}/notifications
+Authorization: Bearer {{userToken}}
+########
+POST {{base}}/admin/orders/19/complete
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "result": "تست تکمیل سفارش"
+}
+########
+GET {{base}}/wallet
+Authorization: Bearer {{userToken}}
+########
+POST {{base}}/admin/orders/19/complete
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "result": "تست دوباره تکمیل"
+}
+#######
+POST {{base}}/admin/orders/20/reject
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "reason": "تست رد سفارش"
+}
+##########
+GET {{base}}/notifications
+Authorization: Bearer {{userToken}}
+########
+GET {{base}}/orders/history
+Authorization: Bearer {{userToken}}
+#######
+GET {{base}}/admin/orders/20/history
+Authorization: Bearer {{adminToken}}

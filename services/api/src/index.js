@@ -20,6 +20,7 @@ import appleId from "./routes/orders/apple-id";
 import pushSubscriptions from "./routes/push-subscriptions";
 import { cors } from "hono/cors";
 import me from "./routes/auth/me";
+import history from "./routes/admin/orders/history";
 
 const app = new Hono();
 
@@ -73,5 +74,6 @@ app.route("/orders/apple-id", appleId);
 // app.route("/push", push);
 app.route("/push-subscriptions", pushSubscriptions);
 app.route("/auth/me", me);
+app.route("/admin/orders", history);
 
 export default app;
