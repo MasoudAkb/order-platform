@@ -601,3 +601,13 @@ Authorization: Bearer {{userToken}}
 #######
 GET {{base}}/admin/orders/20/history
 Authorization: Bearer {{adminToken}}
+#########
+POST {{base}}/admin/wallet/charge
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "userId": 2,
+  "amount": 100000,
+  "description": "تست شارژ نهایی"
+}

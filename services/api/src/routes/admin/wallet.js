@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc } from "drizzle-orm";
 
 import { getDb } from "../../database/db";
 
@@ -11,161 +11,130 @@ import {
 import { authMiddleware } from "../../middleware/auth";
 import { adminMiddleware } from "../../middleware/admin";
 
-
 const wallet = new Hono();
-
 
 wallet.use("*", authMiddleware);
 wallet.use("*", adminMiddleware);
 
 
-
-
+// =====================================================
 // لیست موجودی کاربران
 // GET /admin/wallet
+// =====================================================
 
-wallet.get("/", async (c)=>{
+wallet.get("/", async (c) => {
 
   const db = getDb(c.env);
 
-
-
   const result = await db
     .select({
-
       id: users.id,
-
       name: users.name,
-
       phone: users.phone,
-
       balance: users.balance
-
     })
     .from(users);
 
-
-
   return c.json({
-
-    success:true,
-
-    users:result
-
+    success: true,
+    users: result
   });
-
 
 });
 
 
-
-
-
-
+// =====================================================
 // تاریخچه تراکنش‌های یک کاربر
 // GET /admin/wallet/:userId
+// =====================================================
 
-wallet.get("/:userId", async (c)=>{
-
+wallet.get("/:userId", async (c) => {
 
   const db = getDb(c.env);
-
-
 
   const userId = Number(
     c.req.param("userId")
   );
 
-
-
-  const userResult = await db
-    .select({
-
-      id: users.id,
-
-      name: users.name,
-
-      phone: users.phone,
-
-      balance: users.balance
-
-    })
-    .from(users)
-    .where(
-      eq(users.id,userId)
-    );
-
-
-
-  const user = userResult[0];
-
-
-
-  if(!user){
+  if (!Number.isInteger(userId)) {
 
     return c.json({
-
-      success:false,
-
-      message:"User not found"
-
-    },404);
+      success: false,
+      message: "Invalid user id"
+    }, 400);
 
   }
 
+  const userResult = await db
+    .select({
+      id: users.id,
+      name: users.name,
+      phone: users.phone,
+      balance: users.balance
+    })
+    .from(users)
+    .where(
+      eq(users.id, userId)
+    );
 
+  const user = userResult[0];
 
+  if (!user) {
+
+    return c.json({
+      success: false,
+      message: "User not found"
+    }, 404);
+
+  }
 
   const transactions = await db
     .select()
     .from(walletTransactions)
     .where(
-      eq(walletTransactions.userId,userId)
+      eq(
+        walletTransactions.userId,
+        userId
+      )
     )
     .orderBy(
-      desc(walletTransactions.createdAt)
+      desc(
+        walletTransactions.createdAt
+      )
     );
 
-
-
   return c.json({
-
-    success:true,
-
+    success: true,
     user,
-
     transactions
-
   });
-
 
 });
 
 
-
-
-
-
-
-
+// =====================================================
 // شارژ کیف پول کاربر
 // POST /admin/wallet/:userId
+// =====================================================
 
-wallet.post("/:userId", async (c)=>{
-
+wallet.post("/:userId", async (c) => {
 
   const db = getDb(c.env);
-
-
 
   const userId = Number(
     c.req.param("userId")
   );
 
+  if (!Number.isInteger(userId)) {
 
+    return c.json({
+      success: false,
+      message: "Invalid user id"
+    }, 400);
+
+  }
 
   let body;
-
 
   try {
 
@@ -174,159 +143,172 @@ wallet.post("/:userId", async (c)=>{
   } catch {
 
     return c.json({
-
-      success:false,
-
-      message:"Invalid JSON body"
-
-    },400);
+      success: false,
+      message: "Invalid JSON body"
+    }, 400);
 
   }
-
-
-
 
   const amount = Number(
     body.amount
   );
 
-
-
-  if(!amount || amount <= 0){
+  if (
+    !Number.isInteger(amount) ||
+    amount <= 0
+  ) {
 
     return c.json({
-
-      success:false,
-
-      message:"Invalid amount"
-
-    },400);
+      success: false,
+      message: "Invalid amount"
+    }, 400);
 
   }
 
 
-
-
+  // بررسی وجود کاربر
 
   const userResult = await db
-    .select()
+    .select({
+      id: users.id
+    })
     .from(users)
     .where(
-      eq(users.id,userId)
+      eq(users.id, userId)
     );
 
-
-
-  const user = userResult[0];
-
-
-
-  if(!user){
+  if (!userResult[0]) {
 
     return c.json({
-
-      success:false,
-
-      message:"User not found"
-
-    },404);
+      success: false,
+      message: "User not found"
+    }, 404);
 
   }
 
 
+  const now = Date.now();
 
-const now = Date.now();
+  const description =
+    body.description
+      ? String(body.description)
+      : "Admin charge";
 
-try {
 
-  const result =
-    await db.transaction(async (tx) => {
+  try {
 
-      /*
-       * افزایش موجودی و ثبت تراکنش
-       * باید اتمیک باشند.
-       */
+    /*
+     * عملیات زیر عمداً با D1 native API
+     * انجام می‌شوند.
+     *
+     * db.batch() فقط D1PreparedStatement
+     * قبول می‌کند.
+     *
+     * هر دو Query داخل یک batch اتمیک
+     * اجرا می‌شوند.
+     */
 
-      const updated =
-        await tx
-          .update(users)
-          .set({
-            balance: sql`${users.balance} + ${amount}`
-          })
-          .where(
-            eq(users.id, userId)
-          )
-          .returning();
+    const updateBalance = c.env.DB
+      .prepare(`
+        UPDATE users
+        SET balance = balance + ?
+        WHERE id = ?
+      `)
+      .bind(
+        amount,
+        userId
+      );
 
-      if (!updated[0]) {
-        throw new Error("User not found");
-      }
 
-      const updatedUser =
-        updated[0];
-
-      /*
-       * ثبت تراکنش کیف پول
-       */
-
-      await tx
-        .insert(walletTransactions)
-        .values({
-
-          userId,
-
+    const insertTransaction = c.env.DB
+      .prepare(`
+        INSERT INTO wallet_transactions
+        (
+          user_id,
           amount,
+          type,
+          description,
+          created_at
+        )
+        VALUES (?, ?, ?, ?, ?)
+      `)
+      .bind(
+        userId,
+        amount,
+        "charge",
+        description,
+        now
+      );
 
-          type: "charge",
 
-          description:
-            body.description
-              ? String(body.description)
-              : "Admin charge",
+    await c.env.DB.batch([
+      updateBalance,
+      insertTransaction
+    ]);
 
-          createdAt: now
 
-        });
+    // موجودی نهایی
 
-      return updatedUser;
+    const updatedUser = await db
+      .select({
+        id: users.id,
+        name: users.name,
+        phone: users.phone,
+        balance: users.balance
+      })
+      .from(users)
+      .where(
+        eq(
+          users.id,
+          userId
+        )
+      );
+
+
+    if (!updatedUser[0]) {
+
+      return c.json({
+        success: false,
+        message: "User not found"
+      }, 404);
+
+    }
+
+
+    return c.json({
+
+      success: true,
+
+      userId,
+
+      amount,
+
+      balance:
+        updatedUser[0].balance
 
     });
 
 
-  return c.json({
+  } catch (error) {
 
-    success: true,
+    console.error(
+      "Wallet charge error:",
+      error
+    );
 
-    userId,
+    return c.json({
 
-    amount,
+      success: false,
 
-    balance: result.balance
+      message:
+        error?.message ||
+        "خطا در شارژ کیف پول"
 
-  });
+    }, 500);
 
-} catch (error) {
-
-  console.error(
-    "Wallet charge error:",
-    error
-  );
-
-  return c.json({
-
-    success: false,
-
-    message:
-      error.message ||
-      "خطا در شارژ کیف پول"
-
-  }, 500);
-
-}
-
+  }
 
 });
-
 
 
 export default wallet;
