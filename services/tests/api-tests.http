@@ -21,7 +21,7 @@ Content-Type: application/json
 
 
 ### بعد از اجرا توکن را اینجا قرار بده
-@adminToken=eyJhbGciOiJIUzI1NiJ9.eyJpZCI6MSwicGhvbmUiOiIwOTEyMDAwMDAwMCIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTc4NTg1NTI4MywiZXhwIjoxNzg2NDYwMDgzfQ.cVP_HaKY1fuptLy2ioL_tx5lzolsJkFv7cHSnK5xbUQ
+@adminToken=eyJhbGciOiJIUzI1NiJ9.eyJpZCI6MSwicm9sZSI6ImFkbWluIiwiaWF0IjoxNzg2NDY0NzQ2LCJleHAiOjE3ODcwNjk1NDZ9.ArfChcMxXWlpguxyOzTMiVeounzFR79QIRr3WlOV4fo
 
 
 
@@ -39,7 +39,7 @@ Content-Type: application/json
 
 
 ### بعد از اجرا توکن را اینجا قرار بده
-@userToken=eyJhbGciOiJIUzI1NiJ9.eyJpZCI6MiwicGhvbmUiOiIwOTEyMTExMTExMSIsInJvbGUiOiJjdXN0b21lciIsImlhdCI6MTc4NTg1NTMyNSwiZXhwIjoxNzg2NDYwMTI1fQ.e_t1alPGC8FMfG1ioMbf5b76z_8Tl1LlwtaLjdbtjJM
+@userToken=eyJhbGciOiJIUzI1NiJ9.eyJpZCI6Miwicm9sZSI6InVzZXIiLCJpYXQiOjE3ODYzODY4MzEsImV4cCI6MTc4Njk5MTYzMX0.axTCOC3YT33Lv5X99xITuibNjT0J0J1l9w7AhmFysII
 
 
 
@@ -461,3 +461,89 @@ Content-Type: application/json
 }
 
 ######
+POST {{base}}/auth/login
+
+{
+  "phone": "09121111111",
+  "password": "123123"
+}
+######
+GET {{base}}/auth/me
+Authorization: Bearer {{userToken}}
+
+######
+GET {{base}}/services/apple_id_with_email/price
+
+
+######
+POST {{base}}/orders
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "title": "apple_id_with_email",
+  "description": "Apple ID",
+  "details": {
+    "email": "test2@example.com",
+    "fullName": "Test User 2",
+    "phone": "09120000029"
+  }
+}
+######
+PATCH {{base}}/admin/services/apple_id_with_email
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "basePrice": 500000
+}
+######
+POST {{base}}/admin/users
+Content-Type: application/json
+
+{
+  "name": "Test User",
+  "phone": "09120000000",
+  "password": "Test123456"
+}
+######
+POST {{base}}/auth/login
+Content-Type: application/json
+
+{
+  "phone": "09120000000",
+  "password": "123123"
+}
+############
+POST {{base}}/admin/users
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Test User2",
+  "phone": "09122222223",
+  "password": "123456"
+}
+#########
+POST {{base}}/admin/users
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Test User4",
+  "phone": "09123333334",
+  "password": "123456"
+}
+#########
+GET {{base}}/admin/users/4
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+#########
+PATCH {{base}}/admin/users/4/role
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "role": "customer"
+}

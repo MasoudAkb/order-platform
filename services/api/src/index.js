@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import ordersRoute from "./routes/orders";
-import admin from "./routes/admin";
+// import admin from "./routes/admin";
 import auth from "./routes/auth";
 import adminUsers from "./routes/admin/users";
 import password from "./routes/auth/password";
@@ -54,7 +54,7 @@ app.get("/", (c) => {
 
 
 app.route("/orders", ordersRoute);
-app.route("/admin", admin);
+// app.route("/admin", admin);
 app.route("/auth", auth);
 app.route("/admin/users", adminUsers);
 app.route("/auth/password", password);

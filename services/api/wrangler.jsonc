@@ -18,6 +18,5 @@
 			"database_name": "order-platform-db",
 			"database_id": "c3eb3405-6787-4ea8-ab3e-812624eecb90"
 		}
-	],
-	"migrations_dir": "../../migrations"
+	]
 }

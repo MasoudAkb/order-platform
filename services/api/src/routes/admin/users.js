@@ -22,17 +22,14 @@ adminUsers.use("*", authMiddleware);
 adminUsers.use("*", adminMiddleware);
 
 
-
 // ساخت کاربر توسط ادمین
 // POST /admin/users
 
-adminUsers.post("/", async (c)=>{
+adminUsers.post("/", async (c) => {
 
   const db = getDb(c.env);
 
-
   const body = await c.req.json();
-
 
   const {
     name,
@@ -41,19 +38,17 @@ adminUsers.post("/", async (c)=>{
   } = body;
 
 
-  if(!name || !phone || !password){
+  if (!name || !phone || !password) {
 
     return c.json({
-      success:false,
-      message:"name phone password required"
-    },400);
+      success: false,
+      message: "name phone password required"
+    }, 400);
 
   }
 
 
-
   const passwordHash = await hashPassword(password);
-
 
 
   const result = await db
@@ -66,42 +61,44 @@ adminUsers.post("/", async (c)=>{
 
       passwordHash,
 
-      role:"customer",
+      role: "customer",
 
-      balance:0,
+      balance: 0,
 
-      mustChangePassword:1,
+      mustChangePassword: 1,
 
-      createdAt:Date.now()
+      createdAt: Date.now()
 
     })
     .returning();
 
 
+  const user = result[0];
+
 
   return c.json({
+    success: true,
 
-    success:true,
-
-    user:result[0]
-
+    user: {
+      id: user.id,
+      name: user.name,
+      phone: user.phone,
+      role: user.role,
+      balance: user.balance,
+      mustChangePassword: user.mustChangePassword,
+      createdAt: user.createdAt
+    }
   });
 
-
 });
-
-
-
 
 
 // لیست کاربران
 // GET /admin/users
 
-adminUsers.get("/", async (c)=>{
-
+adminUsers.get("/", async (c) => {
 
   const db = getDb(c.env);
-
 
 
   const result = await db
@@ -112,12 +109,10 @@ adminUsers.get("/", async (c)=>{
     );
 
 
-
   const data = [];
 
 
-  for(const user of result){
-
+  for (const user of result) {
 
     const orderCount = await db
       .select({
@@ -134,51 +129,38 @@ adminUsers.get("/", async (c)=>{
 
     data.push({
 
-      id:user.id,
+      id: user.id,
 
-      name:user.name,
+      name: user.name,
 
-      phone:user.phone,
+      phone: user.phone,
 
-      role:user.role,
+      role: user.role,
 
-      balance:user.balance,
+      balance: user.balance,
 
-      mustChangePassword:user.mustChangePassword,
+      mustChangePassword: user.mustChangePassword,
 
       ordersCount:
         orderCount[0].count
 
     });
 
-
   }
 
 
-
   return c.json({
-
-    success:true,
-
-    users:data
-
+    success: true,
+    users: data
   });
 
-
 });
-
-
-
-
-
 
 
 // جزئیات کاربر
 // GET /admin/users/:id
 
-
-adminUsers.get("/:id", async (c)=>{
-
+adminUsers.get("/:id", async (c) => {
 
   const db = getDb(c.env);
 
@@ -188,31 +170,33 @@ adminUsers.get("/:id", async (c)=>{
   );
 
 
-
   const userResult = await db
-    .select()
+    .select({
+      id: users.id,
+      name: users.name,
+      phone: users.phone,
+      role: users.role,
+      balance: users.balance,
+      mustChangePassword: users.mustChangePassword,
+      createdAt: users.createdAt
+    })
     .from(users)
     .where(
-      eq(users.id,userId)
+      eq(users.id, userId)
     );
 
 
   const user = userResult[0];
 
 
-
-  if(!user){
+  if (!user) {
 
     return c.json({
-
-      success:false,
-
-      message:"User not found"
-
-    },404);
+      success: false,
+      message: "User not found"
+    }, 404);
 
   }
-
 
 
   const userOrders = await db
@@ -229,7 +213,6 @@ adminUsers.get("/:id", async (c)=>{
     );
 
 
-
   const transactions = await db
     .select()
     .from(walletTransactions)
@@ -244,34 +227,25 @@ adminUsers.get("/:id", async (c)=>{
     );
 
 
-
   return c.json({
 
-    success:true,
+    success: true,
 
     user,
 
-    orders:userOrders,
+    orders: userOrders,
 
     transactions
 
   });
 
-
 });
-
-
-
-
-
 
 
 // تغییر رمز
 // PATCH /admin/users/:id/password
 
-
-adminUsers.patch("/:id/password", async (c)=>{
-
+adminUsers.patch("/:id/password", async (c) => {
 
   const db = getDb(c.env);
 
@@ -284,23 +258,18 @@ adminUsers.patch("/:id/password", async (c)=>{
   const body = await c.req.json();
 
 
-  if(!body.password){
+  if (!body.password) {
 
     return c.json({
-
-      success:false,
-
-      message:"Password required"
-
-    },400);
+      success: false,
+      message: "Password required"
+    }, 400);
 
   }
 
 
-
   const passwordHash =
     await hashPassword(body.password);
-
 
 
   const result = await db
@@ -309,51 +278,36 @@ adminUsers.patch("/:id/password", async (c)=>{
 
       passwordHash,
 
-      mustChangePassword:1
+      mustChangePassword: 1
 
     })
     .where(
-      eq(users.id,userId)
+      eq(users.id, userId)
     )
     .returning();
 
 
-
-  if(!result[0]){
+  if (!result[0]) {
 
     return c.json({
-
-      success:false,
-
-      message:"User not found"
-
-    },404);
+      success: false,
+      message: "User not found"
+    }, 404);
 
   }
 
 
-
   return c.json({
-
-    success:true
-
+    success: true
   });
 
-
 });
-
-
-
-
-
 
 
 // تغییر نقش
 // PATCH /admin/users/:id/role
 
-
-adminUsers.patch("/:id/role", async (c)=>{
-
+adminUsers.patch("/:id/role", async (c) => {
 
   const db = getDb(c.env);
 
@@ -365,70 +319,63 @@ adminUsers.patch("/:id/role", async (c)=>{
 
   const body = await c.req.json();
 
-
-
-  const allowed=[
+  const allowed = [
     "customer",
     "admin"
   ];
 
 
-
-  if(!allowed.includes(body.role)){
-
+  if (!allowed.includes(body.role)) {
 
     return c.json({
-
-      success:false,
-
-      message:"Invalid role"
-
-    },400);
-
+      success: false,
+      message: "Invalid role"
+    }, 400);
 
   }
-
 
 
   const result = await db
     .update(users)
     .set({
 
-      role:body.role
+      role: body.role
 
     })
     .where(
-      eq(users.id,userId)
+      eq(users.id, userId)
     )
     .returning();
 
 
-
-  if(!result[0]){
+  if (!result[0]) {
 
     return c.json({
-
-      success:false,
-
-      message:"User not found"
-
-    },404);
+      success: false,
+      message: "User not found"
+    }, 404);
 
   }
 
 
+  const user = result[0];
+
 
   return c.json({
+    success: true,
 
-    success:true,
-
-    user:result[0]
-
+    user: {
+      id: user.id,
+      name: user.name,
+      phone: user.phone,
+      role: user.role,
+      balance: user.balance,
+      mustChangePassword: user.mustChangePassword,
+      createdAt: user.createdAt
+    }
   });
 
-
 });
-
 
 
 export default adminUsers;
