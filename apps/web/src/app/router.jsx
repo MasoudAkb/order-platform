@@ -21,9 +21,9 @@ import UserOrders from "../pages/UserOrders";
 import Orders from "../pages/Orders";
 
 import Notifications from "../pages/Notifications";
+import ServiceList from "../pages/ServiceList";
 
 const router = createBrowserRouter([
-
     {
         path: "/login",
         element: <Login />
@@ -47,12 +47,10 @@ const router = createBrowserRouter([
         ),
 
         children: [
-
             {
                 index: true,
                 element: <Home />
             },
-
 
             // =========================
             // USER
@@ -64,6 +62,11 @@ const router = createBrowserRouter([
             },
 
             {
+                path: "services",
+                element: <ServiceList />
+            },
+            
+            {
                 path: "orders/:id",
                 element: <OrderDetails />
             },
@@ -73,6 +76,23 @@ const router = createBrowserRouter([
                 element: <AppleId />
             },
 
+            // =========================
+            // USER SERVICES
+            // =========================
+
+            {
+                path: "services",
+                element: <Services />
+            },
+
+            // =========================
+            // USER NOTIFICATIONS
+            // =========================
+
+            {
+                path: "notifications",
+                element: <Notifications />
+            },
 
             // =========================
             // ADMIN
@@ -106,31 +126,15 @@ const router = createBrowserRouter([
             },
 
             {
-                path: "services",
-                element: (
-                    <ProtectedRoute adminOnly={true}>
-                        <Services />
-                    </ProtectedRoute>
-                )
-            },
-
-            {
                 path: "wallet",
                 element: (
                     <ProtectedRoute adminOnly={true}>
                         <Wallet />
                     </ProtectedRoute>
                 )
-            },
-            {
-                path: "notifications",
-                element: <Notifications />
-            },
-
+            }
         ]
-
     }
-
 ]);
 
 export default router;

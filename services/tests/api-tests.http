@@ -602,12 +602,30 @@ Authorization: Bearer {{userToken}}
 GET {{base}}/admin/orders/20/history
 Authorization: Bearer {{adminToken}}
 #########
-POST {{base}}/admin/wallet/charge
+POST {{base}}/admin/wallet/2
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
 {
-  "userId": 2,
   "amount": 100000,
   "description": "تست شارژ نهایی"
 }
+#######
+GET {{base}}/admin/wallet/2
+Authorization: Bearer {{adminToken}}
+#########
+GET {{base}}/wallet
+Authorization: Bearer {{userToken}}
+#######
+POST {{base}}/admin/orders/7/complete
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "result": "تست Atomic Payment"
+}
+#########
+
+#########
+
+#######

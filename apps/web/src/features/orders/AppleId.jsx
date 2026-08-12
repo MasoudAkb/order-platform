@@ -29,7 +29,9 @@ export default function AppleId() {
         "apple_id_with_email"
     );
 
-    const [form, setForm] = useState(EMPTY_FORM);
+    const [form, setForm] = useState({
+        ...EMPTY_FORM,
+    });
 
     const [loading, setLoading] = useState(false);
     const [loadingServices, setLoadingServices] = useState(true);
@@ -38,7 +40,7 @@ export default function AppleId() {
     const [error, setError] = useState("");
 
     // =====================================================
-    // دریافت اطلاعات هر دو سرویس از دیتابیس
+    // دریافت قیمت و اطلاعات سرویس‌ها
     // =====================================================
 
     async function loadServices() {
@@ -49,7 +51,7 @@ export default function AppleId() {
             const results = await Promise.all(
                 SERVICES.map(async (item) => {
                     const data = await api(
-                        `/services/${item.type}/price`
+                        `/services/${encodeURIComponent(item.type)}/price`
                     );
 
                     if (!data.success) {
@@ -70,15 +72,13 @@ export default function AppleId() {
             });
 
             setServices(serviceMap);
-
         } catch (err) {
-            console.error(err);
+            console.error("Load services error:", err);
 
             setError(
                 err.message ||
                 "خطا در دریافت اطلاعات سرویس‌ها"
             );
-
         } finally {
             setLoadingServices(false);
         }
@@ -96,18 +96,16 @@ export default function AppleId() {
         const newType = e.target.value;
 
         setServiceType(newType);
+        setMessage("");
+        setError("");
 
-        // وقتی سرویس بدون ایمیل انتخاب شد،
-        // ایمیل قبلی کاملاً پاک شود.
+        // در سرویس بدون ایمیل، ایمیل قبلی پاک شود.
         if (newType === "apple_id_without_email") {
             setForm((prev) => ({
                 ...prev,
                 email: "",
             }));
         }
-
-        setMessage("");
-        setError("");
     }
 
     // =====================================================
@@ -115,9 +113,11 @@ export default function AppleId() {
     // =====================================================
 
     function handleChange(e) {
+        const { name, value } = e.target;
+
         setForm((prev) => ({
             ...prev,
-            [e.target.name]: e.target.value,
+            [name]: value,
         }));
     }
 
@@ -133,35 +133,38 @@ export default function AppleId() {
             setMessage("");
             setError("");
 
-            // فقط اطلاعاتی که مقدار دارند ارسال شوند.
+            // فقط فیلدهای دارای مقدار ارسال شوند.
             const details = {};
 
-            Object.entries(form).forEach(
-                ([key, value]) => {
-                    if (
-                        typeof value === "string" &&
-                        value.trim() !== ""
-                    ) {
-                        details[key] = value.trim();
-                    }
+            Object.entries(form).forEach(([key, value]) => {
+                if (
+                    typeof value === "string" &&
+                    value.trim() !== ""
+                ) {
+                    details[key] = value.trim();
                 }
-            );
+            });
 
-            // در سرویس بدون ایمیل، ایمیل اصلاً ارسال نشود.
-            if (
-                serviceType ===
-                "apple_id_without_email"
-            ) {
+            // برای سرویس بدون ایمیل، ایمیل اصلاً ارسال نشود.
+            if (serviceType === "apple_id_without_email") {
                 delete details.email;
             }
+
+            // =================================================
+            // ثبت سفارش
+            // =================================================
+            //
+            // مهم:
+            // نوع سرویس باید با serviceType ارسال شود.
+            // قبلاً این مقدار داخل title ارسال می‌شد.
+            //
 
             const result = await api(
                 "/orders",
                 {
                     method: "POST",
-
                     body: JSON.stringify({
-                        title: serviceType,
+                        serviceType,
                         details,
                     }),
                 }
@@ -175,22 +178,21 @@ export default function AppleId() {
             }
 
             setMessage(
-                "سفارش شما با موفقیت ثبت شد"
+                "سفارش شما با موفقیت ثبت شد."
             );
 
-            // پاک کردن فرم
+            // پاک کردن فرم بعد از ثبت موفق
             setForm({
                 ...EMPTY_FORM,
             });
 
         } catch (err) {
-            console.error(err);
+            console.error("Create order error:", err);
 
             setError(
                 err.message ||
                 "خطا در ثبت سفارش"
             );
-
         } finally {
             setLoading(false);
         }
@@ -208,12 +210,10 @@ export default function AppleId() {
         );
     }
 
-    const selectedService =
-        services[serviceType];
+    const selectedService = services[serviceType];
 
     const isWithEmail =
-        serviceType ===
-        "apple_id_with_email";
+        serviceType === "apple_id_with_email";
 
     // =====================================================
     // فرم
@@ -221,7 +221,6 @@ export default function AppleId() {
 
     return (
         <div className="max-w-3xl mx-auto p-6">
-
             <div
                 className="
                     bg-white
@@ -230,7 +229,6 @@ export default function AppleId() {
                     p-6
                 "
             >
-
                 <h1
                     className="
                         text-2xl
@@ -245,7 +243,6 @@ export default function AppleId() {
                 {/* انتخاب نوع سرویس */}
 
                 <div className="mb-6">
-
                     <label
                         className="
                             block
@@ -272,7 +269,6 @@ export default function AppleId() {
                             focus:ring-blue-500
                         "
                     >
-
                         {SERVICES.map((item) => (
                             <option
                                 key={item.type}
@@ -281,16 +277,12 @@ export default function AppleId() {
                                 {item.label}
                             </option>
                         ))}
-
                     </select>
-
                 </div>
-
 
                 {/* اطلاعات سرویس */}
 
                 {selectedService && (
-
                     <div
                         className="
                             bg-blue-50
@@ -301,12 +293,7 @@ export default function AppleId() {
                             mb-6
                         "
                     >
-
-                        <div
-                            className="
-                                font-bold
-                            "
-                        >
+                        <div className="font-bold">
                             {selectedService.title}
                         </div>
 
@@ -317,28 +304,18 @@ export default function AppleId() {
                                 font-semibold
                             "
                         >
-                            قیمت:
-
-                            {" "}
-
+                            قیمت:{" "}
                             {Number(
                                 selectedService.basePrice
-                            ).toLocaleString("fa-IR")}
-
-                            {" "}
-
+                            ).toLocaleString("fa-IR")}{" "}
                             تومان
                         </div>
-
                     </div>
-
                 )}
-
 
                 {/* پیام موفقیت */}
 
                 {message && (
-
                     <div
                         className="
                             bg-green-100
@@ -350,14 +327,11 @@ export default function AppleId() {
                     >
                         {message}
                     </div>
-
                 )}
-
 
                 {/* پیام خطا */}
 
                 {error && (
-
                     <div
                         className="
                             bg-red-100
@@ -369,19 +343,15 @@ export default function AppleId() {
                     >
                         {error}
                     </div>
-
                 )}
-
 
                 <form
                     onSubmit={submit}
                     className="space-y-4"
                 >
-
-                    {/* ایمیل فقط در سرویس ایمیل‌دار */}
+                    {/* ایمیل فقط برای سرویس ایمیل‌دار */}
 
                     {isWithEmail && (
-
                         <Input
                             label="ایمیل"
                             name="email"
@@ -391,9 +361,7 @@ export default function AppleId() {
                             placeholder="example@gmail.com"
                             required
                         />
-
                     )}
-
 
                     {/* نام */}
 
@@ -406,7 +374,6 @@ export default function AppleId() {
                         placeholder="به انگلیسی و با فاصله"
                     />
 
-
                     {/* شماره تماس */}
 
                     <Input
@@ -417,8 +384,7 @@ export default function AppleId() {
                         required
                     />
 
-
-                    {/* رمز - اختیاری */}
+                    {/* رمز */}
 
                     <Input
                         label="رمز عبور پیشنهادی (اختیاری)"
@@ -429,8 +395,7 @@ export default function AppleId() {
                         placeholder="شامل حروف بزرگ، کوچک و اعداد"
                     />
 
-
-                    {/* تاریخ تولد - اختیاری */}
+                    {/* تاریخ تولد */}
 
                     <Input
                         label="تاریخ تولد (اختیاری)"
@@ -439,7 +404,6 @@ export default function AppleId() {
                         onChange={handleChange}
                         placeholder="مثلاً 2000/01/01"
                     />
-
 
                     {/* سوال امنیتی اول */}
 
@@ -450,7 +414,6 @@ export default function AppleId() {
                         onChange={handleChange}
                     />
 
-
                     {/* سوال امنیتی دوم */}
 
                     <Input
@@ -460,7 +423,6 @@ export default function AppleId() {
                         onChange={handleChange}
                     />
 
-
                     {/* سوال امنیتی سوم */}
 
                     <Input
@@ -469,7 +431,6 @@ export default function AppleId() {
                         value={form.security3}
                         onChange={handleChange}
                     />
-
 
                     {/* ثبت سفارش */}
 
@@ -486,21 +447,18 @@ export default function AppleId() {
                             font-bold
                             transition
                             disabled:opacity-50
+                            disabled:cursor-not-allowed
                         "
                     >
                         {loading
                             ? "در حال ثبت..."
                             : "ثبت سفارش"}
                     </button>
-
                 </form>
-
             </div>
-
         </div>
     );
 }
-
 
 // =====================================================
 // Input Component
@@ -517,7 +475,6 @@ function Input({
 }) {
     return (
         <div>
-
             <label
                 className="
                     block
@@ -547,7 +504,6 @@ function Input({
                     focus:ring-blue-500
                 "
             />
-
         </div>
     );
 }

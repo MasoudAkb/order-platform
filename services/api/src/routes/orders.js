@@ -55,7 +55,7 @@ ordersRoute.post("/", async (c) => {
      * apple_id_without_email
      */
 
-    const serviceType = body.title;
+    const serviceType = body.serviceType;
 
 
     if (!serviceType) {
