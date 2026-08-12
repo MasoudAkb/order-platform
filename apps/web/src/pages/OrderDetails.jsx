@@ -4,6 +4,7 @@ import { useAuth } from "../features/auth/AuthContext";
 import api from "../services/api";
 
 export default function OrderDetails() {
+
     const { id } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -16,11 +17,17 @@ export default function OrderDetails() {
     const [messages, setMessages] = useState([]);
     const [history, setHistory] = useState([]);
 
+    const [messageText, setMessageText] = useState("");
+    const [messageSending, setMessageSending] = useState(false);
+
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
+    const [messageLoading, setMessageLoading] = useState(false);
 
     const [error, setError] = useState("");
     const [rejectReason, setRejectReason] = useState("");
+
+    const [newMessage, setNewMessage] = useState("");
 
     const [showRejectBox, setShowRejectBox] = useState(false);
     const [completeMessage, setCompleteMessage] = useState("");
@@ -49,9 +56,12 @@ export default function OrderDetails() {
             const data = await api(endpoint);
 
             if (!data.success) {
+
                 throw new Error(
-                    data.message || "خطا در دریافت سفارش"
+                    data.message ||
+                    "خطا در دریافت سفارش"
                 );
+
             }
 
             setOrder(data.order || null);
@@ -59,11 +69,22 @@ export default function OrderDetails() {
             /*
              * اطلاعات مشتری فقط در پاسخ Admin
              */
-            setCustomer(data.customer || null);
 
-            setDetails(data.details || null);
-            setMessages(data.messages || []);
-            setHistory(data.history || []);
+            setCustomer(
+                data.customer || null
+            );
+
+            setDetails(
+                data.details || null
+            );
+
+            setMessages(
+                data.messages || []
+            );
+
+            setHistory(
+                data.history || []
+            );
 
         } catch (err) {
 
@@ -97,6 +118,7 @@ export default function OrderDetails() {
      * ADMIN ACTIONS
      * =========================
      */
+
 
     async function approveOrder() {
 
@@ -287,14 +309,115 @@ export default function OrderDetails() {
     }
 
 
+    /*
+     * =========================
+     * SEND MESSAGE
+     * =========================
+     */
+
+    async function sendMessage() {
+
+        if (!isAdmin || !order) return;
+
+        const message = newMessage.trim();
+
+        if (!message) {
+
+            alert(
+                "لطفاً متن پیام را وارد کنید."
+            );
+
+            return;
+
+        }
+
+        try {
+
+            setMessageLoading(true);
+            setError("");
+
+            const data = await api(
+                `/admin/orders/${order.id}/messages`,
+                {
+                    method: "POST",
+
+                    body: JSON.stringify({
+                        message
+                    })
+                }
+            );
+
+            if (!data.success) {
+
+                throw new Error(
+                    data.message ||
+                    "ارسال پیام انجام نشد"
+                );
+
+            }
+
+            setNewMessage("");
+
+            /*
+             * اگر API پیام ایجاد شده را
+             * برگرداند، بدون درخواست مجدد
+             * آن را به لیست اضافه می‌کنیم.
+             */
+
+            if (data.message) {
+
+                setMessages(prev => [
+                    ...prev,
+                    data.message
+                ]);
+
+            } else {
+
+                /*
+                 * اگر API پیام را برنگرداند،
+                 * اطلاعات سفارش را دوباره می‌گیریم.
+                 */
+
+                await loadOrder();
+
+            }
+
+        } catch (err) {
+
+            console.error(err);
+
+            setError(
+                err.message ||
+                "خطا در ارسال پیام"
+            );
+
+        } finally {
+
+            setMessageLoading(false);
+
+        }
+
+    }
+
+
+    /*
+     * =========================
+     * LOADING
+     * =========================
+     */
+    
     if (loading) {
 
         return (
+
             <div style={page}>
+
                 <h3>
                     در حال دریافت اطلاعات سفارش...
                 </h3>
+
             </div>
+
         );
 
     }
@@ -308,7 +431,11 @@ export default function OrderDetails() {
 
                 <button
                     onClick={() =>
-                        navigate("/orders")
+                        navigate(
+                            isAdmin
+                                ? "/admin/orders"
+                                : "/orders"
+                        )
                     }
                     style={backButton}
                 >
@@ -331,9 +458,11 @@ export default function OrderDetails() {
         return (
 
             <div style={page}>
+
                 <p>
                     سفارش پیدا نشد.
                 </p>
+
             </div>
 
         );
@@ -886,7 +1015,9 @@ export default function OrderDetails() {
             )}
 
 
-            {/* Messages */}
+            {/* =========================
+                Messages
+            ========================= */}
 
             <section style={card}>
 
@@ -894,6 +1025,71 @@ export default function OrderDetails() {
                     پیام‌ها
                 </h2>
 
+
+                {/* Send message - Admin */}
+
+                {isAdmin && (
+
+                    <div style={sendMessageBox}>
+
+                        <textarea
+                            value={newMessage}
+                            onChange={(e) =>
+                                setNewMessage(
+                                    e.target.value
+                                )
+                            }
+                            placeholder="پیام خود را برای مشتری بنویسید..."
+                            rows={4}
+                            style={textarea}
+                            disabled={
+                                messageLoading
+                            }
+                        />
+
+
+                        <div
+                            style={{
+                                marginTop:
+                                    "10px",
+                                display:
+                                    "flex",
+                                justifyContent:
+                                    "flex-start"
+                            }}
+                        >
+
+                            <button
+                                onClick={
+                                    sendMessage
+                                }
+                                disabled={
+                                    messageLoading ||
+                                    !newMessage.trim()
+                                }
+                                style={{
+                                    ...sendMessageButton,
+
+                                    opacity:
+                                        messageLoading ||
+                                            !newMessage.trim()
+                                            ? 0.6
+                                            : 1
+                                }}
+                            >
+                                {messageLoading
+                                    ? "در حال ارسال..."
+                                    : "ارسال پیام"}
+                            </button>
+
+                        </div>
+
+                    </div>
+
+                )}
+
+
+                {/* Messages list */}
 
                 {messages.length === 0 ? (
 
@@ -1049,11 +1245,12 @@ export default function OrderDetails() {
         </div>
 
     );
+
 }
 
 
 /* -------------------------
-   Components
+Components
 ------------------------- */
 
 function InfoItem({ title, value }) {
@@ -1078,7 +1275,7 @@ function InfoItem({ title, value }) {
 
 
 /* -------------------------
-   Helpers
+Helpers
 ------------------------- */
 
 function getStatusText(status) {
@@ -1141,7 +1338,7 @@ function formatDate(value) {
 
 
 /* -------------------------
-   Styles
+Styles
 ------------------------- */
 
 const page = {
@@ -1374,6 +1571,41 @@ const textarea = {
     resize: "vertical",
 
     fontFamily: "inherit"
+
+};
+
+
+const sendMessageBox = {
+
+    marginBottom: "20px",
+
+    padding: "15px",
+
+    background: "#f8fafc",
+
+    borderRadius: "8px",
+
+    border:
+        "1px solid #e5e7eb"
+
+};
+
+
+const sendMessageButton = {
+
+    border: "none",
+
+    background: "#2563eb",
+
+    color: "#fff",
+
+    padding: "10px 18px",
+
+    borderRadius: "7px",
+
+    cursor: "pointer",
+
+    fontWeight: "600"
 
 };
 

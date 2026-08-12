@@ -625,7 +625,23 @@ Content-Type: application/json
   "result": "تست Atomic Payment"
 }
 #########
+POST {{base}}/admin/orders/21/messages
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
 
+{
+  "message": "لطفاً کد تأیید ارسال‌شده به ایمیل خود را برای ما ارسال کنید."
+}
 #########
+GET {{base}}/admin/orders/21
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
 
 #######
+POST {{base}}/orders/21/messages
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "message": "کد تأیید من 123456 است."
+}
