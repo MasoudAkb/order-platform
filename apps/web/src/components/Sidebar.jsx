@@ -1,120 +1,141 @@
-import { NavLink } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
 
 export default function Sidebar() {
-    const { logout, user } = useAuth();
+  const { user } = useAuth();
 
-    const isAdmin = user?.role === "admin";
+  const isAdmin = user?.role === "admin";
 
-    const linkStyle = ({ isActive }) => ({
-        display: "block",
-        padding: "12px 15px",
-        marginBottom: "5px",
-        color: isActive ? "#fff" : "#ddd",
-        background: isActive ? "#2563eb" : "transparent",
-        textDecoration: "none",
-        borderRadius: "8px",
-    });
-
-    return (
-        <aside
-            style={{
-                width: "220px",
-                background: "#111827",
-                padding: "20px",
-                color: "#fff",
-                boxSizing: "border-box",
-            }}
+  return (
+    <aside
+      style={{
+        width: "220px",
+        background: "#374151",
+        color: "white",
+        padding: "20px",
+        minHeight: "calc(100vh - 60px)",
+      }}
+    >
+      <nav
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "15px",
+        }}
+      >
+        {/* داشبورد */}
+        <Link
+          to="/"
+          style={{
+            color: "white",
+            textDecoration: "none",
+          }}
         >
-            <h3
-                style={{
-                    marginBottom: "25px",
-                }}
+          داشبورد
+        </Link>
+
+        {isAdmin ? (
+          <>
+            {/* ================= ADMIN ================= */}
+
+            <Link
+              to="/users"
+              style={{
+                color: "white",
+                textDecoration: "none",
+              }}
             >
-                Order Platform
-            </h3>
+              کاربران
+            </Link>
 
-            {/* داشبورد */}
-            <NavLink
-                to="/"
-                style={linkStyle}
+            <Link
+              to="/admin/orders"
+              style={{
+                color: "white",
+                textDecoration: "none",
+              }}
             >
-                داشبورد
-            </NavLink>
+              مدیریت سفارش‌ها
+            </Link>
 
-            {isAdmin ? (
-                <>
-                    {/* ================= ADMIN ================= */}
-
-                    <NavLink
-                        to="/users"
-                        style={linkStyle}
-                    >
-                        کاربران
-                    </NavLink>
-
-                    <NavLink
-                        to="/admin/orders"
-                        style={linkStyle}
-                    >
-                        مدیریت سفارش‌ها
-                    </NavLink>
-
-                    <NavLink
-                        to="/services"
-                        style={linkStyle}
-                    >
-                        خدمات
-                    </NavLink>
-
-                    <NavLink
-                        to="/orders"
-                        style={linkStyle}
-                    >
-                        سفارش‌ها
-                    </NavLink>
-
-                    <NavLink
-                        to="/notifications"
-                        style={linkStyle}
-                    >
-                        اعلان‌ها
-                    </NavLink>
-                </>
-            ) : (
-                <>
-                    {/* ================= USER ================= */}
-
-                    <NavLink
-                        to="/orders"
-                        style={linkStyle}
-                    >
-                        سفارش‌ها
-                    </NavLink>
-
-                    <NavLink
-                        to="/notifications"
-                        style={linkStyle}
-                    >
-                        اعلان‌ها
-                    </NavLink>
-                </>
-            )}
-
-            {/* خروج */}
-            <button
-                onClick={logout}
-                style={{
-                    marginTop: "30px",
-                    width: "100%",
-                    padding: "10px",
-                    cursor: "pointer",
-                    borderRadius: "8px",
-                    border: "none",
-                }}
+            <Link
+              to="/services"
+              style={{
+                color: "white",
+                textDecoration: "none",
+              }}
             >
-                خروج
-            </button>
-        </aside>
-    );
+              خدمات
+            </Link>
+
+            <Link
+              to="/orders"
+              style={{
+                color: "white",
+                textDecoration: "none",
+              }}
+            >
+              سفارش‌ها
+            </Link>
+
+            {/* ساخت اپل آیدی */}
+            <Link
+              to="/apple-id"
+              style={{
+                color: "white",
+                textDecoration: "none",
+              }}
+            >
+              ساخت اپل آیدی
+            </Link>
+
+            <Link
+              to="/notifications"
+              style={{
+                color: "white",
+                textDecoration: "none",
+              }}
+            >
+              اعلان‌ها
+            </Link>
+          </>
+        ) : (
+          <>
+            {/* ================= USER ================= */}
+
+            <Link
+              to="/orders"
+              style={{
+                color: "white",
+                textDecoration: "none",
+              }}
+            >
+              سفارش‌ها
+            </Link>
+
+            {/* ساخت اپل آیدی */}
+            <Link
+              to="/apple-id"
+              style={{
+                color: "white",
+                textDecoration: "none",
+              }}
+            >
+              ساخت اپل آیدی
+            </Link>
+
+            <Link
+              to="/notifications"
+              style={{
+                color: "white",
+                textDecoration: "none",
+              }}
+            >
+              اعلان‌ها
+            </Link>
+          </>
+        )}
+      </nav>
+    </aside>
+  );
 }
