@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../features/auth/AuthContext";
 
 export default function Sidebar() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   const isAdmin = user?.role === "admin";
 
@@ -24,6 +24,7 @@ export default function Sidebar() {
         }}
       >
         {/* داشبورد */}
+
         <Link
           to="/"
           style={{
@@ -79,6 +80,7 @@ export default function Sidebar() {
             </Link>
 
             {/* ساخت اپل آیدی */}
+
             <Link
               to="/apple-id"
               style={{
@@ -114,6 +116,7 @@ export default function Sidebar() {
             </Link>
 
             {/* ساخت اپل آیدی */}
+
             <Link
               to="/apple-id"
               style={{
@@ -135,6 +138,25 @@ export default function Sidebar() {
             </Link>
           </>
         )}
+
+        {/* ================= LOGOUT ================= */}
+
+        <button
+          onClick={logout}
+          style={{
+            marginTop: "10px",
+            border: "none",
+            background: "#dc2626",
+            color: "white",
+            padding: "10px",
+            borderRadius: "7px",
+            cursor: "pointer",
+            fontFamily: "inherit",
+            fontSize: "14px",
+          }}
+        >
+          خروج
+        </button>
       </nav>
     </aside>
   );
