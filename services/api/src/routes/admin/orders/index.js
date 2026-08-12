@@ -11,6 +11,11 @@ import {
     orderDetails
 } from "../../../database/schema";
 
+import {
+    createNotificationQuery,
+    sendNotificationPush
+} from "../../../utils/notification";
+
 import { authMiddleware } from "../../../middleware/auth";
 import { adminMiddleware } from "../../../middleware/admin";
 
@@ -259,12 +264,29 @@ adminOrders.post("/:id/messages", async (c) => {
         c.req.param("id")
     );
 
+
     if (!Number.isInteger(orderId)) {
 
         return c.json({
             success: false,
             message: "Invalid order id"
         }, 400);
+
+    }
+
+
+    // -------------------------
+    // ادمین فعلی
+    // -------------------------
+
+    const admin = c.get("user");
+
+    if (!admin || !admin.id) {
+
+        return c.json({
+            success: false,
+            message: "Unauthorized"
+        }, 401);
 
     }
 
@@ -331,18 +353,12 @@ adminOrders.post("/:id/messages", async (c) => {
     }
 
 
-    // -------------------------
-    // ادمین فعلی
-    // -------------------------
-
-    const admin = c.get("user");
-
-    if (!admin || !admin.id) {
+    if (message.length > 2000) {
 
         return c.json({
             success: false,
-            message: "Unauthorized"
-        }, 401);
+            message: "Message is too long"
+        }, 400);
 
     }
 
@@ -376,14 +392,85 @@ adminOrders.post("/:id/messages", async (c) => {
     }
 
 
+    // =================================================
+    // Notification برای صاحب سفارش
+    // =================================================
+
+    if (order.userId) {
+
+        const notificationTitle =
+            "پیام جدید از پشتیبانی";
+
+        const notificationBody =
+            `پیام جدید در سفارش #${orderId}: ${message}`;
+
+
+        try {
+
+            // -------------------------
+            // ذخیره Notification در DB
+            // -------------------------
+
+            await createNotificationQuery(
+                db,
+                {
+                    userId: order.userId,
+                    orderId,
+                    title: notificationTitle,
+                    body: notificationBody,
+                    type: "new_message"
+                }
+            );
+
+
+            // -------------------------
+            // ارسال Push با OneSignal
+            // -------------------------
+
+            await sendNotificationPush(
+                db,
+                {
+                    userId: order.userId,
+                    orderId,
+                    title: notificationTitle,
+                    body: notificationBody,
+                    type: "new_message"
+                }
+            );
+
+
+        } catch (error) {
+
+            /*
+             * اگر Notification یا Push شکست خورد،
+             * ثبت پیام اصلی نباید شکست بخورد.
+             */
+
+            console.error(
+                "Admin message notification error:",
+                error
+            );
+
+        }
+
+    }
+
+
+    // -------------------------
+    // پاسخ
+    // -------------------------
+
     return c.json({
 
         success: true,
 
         message: {
             ...createdMessage,
+
             senderName: admin.name,
+
             senderRole: admin.role
+
         }
 
     });
