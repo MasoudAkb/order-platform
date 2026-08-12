@@ -1,27 +1,29 @@
 import { Hono } from "hono";
 import { eq, and } from "drizzle-orm";
 
-import { getDb } from "../../../database/db";
+import { getDb } from "../../database/db";
 
 import {
+    users,
     orders,
     messages
-} from "../../../database/schema";
+} from "../../database/schema";
 
 import {
     createNotificationQuery,
     sendNotificationPush
-} from "../../../utils/notification";
+} from "../../utils/notification";
 
-import { authMiddleware } from "../../../middleware/auth";
+import { authMiddleware } from "../../middleware/auth";
 
 const orderMessages = new Hono();
 
 orderMessages.use("*", authMiddleware);
 
+
 // =====================================================
-// ارسال پیام توسط ادمین
-// POST /admin/orders/:id/messages
+// ارسال پیام توسط مشتری
+// POST /orders/:id/messages
 // =====================================================
 
 orderMessages.post("/:id/messages", async (c) => {
@@ -31,11 +33,7 @@ orderMessages.post("/:id/messages", async (c) => {
     const user = c.get("user");
 
 
-    /*
-     * فقط ادمین اجازه ارسال پیام دارد
-     */
-
-    if (!user || user.role !== "admin") {
+    if (!user) {
 
         return c.json({
             success: false,
@@ -61,14 +59,17 @@ orderMessages.post("/:id/messages", async (c) => {
 
 
     /*
-     * پیدا کردن سفارش
+     * فقط صاحب سفارش اجازه ارسال پیام دارد
      */
 
     const orderResult = await db
         .select()
         .from(orders)
         .where(
-            eq(orders.id, orderId)
+            and(
+                eq(orders.id, orderId),
+                eq(orders.userId, user.id)
+            )
         );
 
 
@@ -81,6 +82,22 @@ orderMessages.post("/:id/messages", async (c) => {
             success: false,
             message: "سفارش پیدا نشد."
         }, 404);
+
+    }
+
+
+    /*
+     * کاربر فقط هنگام پردازش سفارش
+     * می‌تواند پیام ارسال کند.
+     */
+
+    if (order.status !== "processing") {
+
+        return c.json({
+            success: false,
+            message:
+                "در وضعیت فعلی سفارش امکان ارسال پیام وجود ندارد."
+        }, 400);
 
     }
 
@@ -135,7 +152,7 @@ orderMessages.post("/:id/messages", async (c) => {
 
 
     /*
-     * ثبت پیام
+     * ثبت پیام در دیتابیس
      */
 
     const result = await db
@@ -162,28 +179,48 @@ orderMessages.post("/:id/messages", async (c) => {
     }
 
 
-    /*
-     * Notification برای صاحب سفارش
-     */
+    // =====================================================
+    // Notification برای ادمین‌ها
+    // =====================================================
 
-    if (order.userId) {
+    try {
+
+        /*
+         * پیدا کردن تمام ادمین‌ها
+         */
+
+        const admins = await db
+            .select()
+            .from(users)
+            .where(
+                eq(users.role, "admin")
+            );
+
+
+        /*
+         * متن Notification
+         */
 
         const notificationBody =
-            `پیام جدید از پشتیبانی در سفارش #${orderId}: ${messageText}`;
+            `پیام جدید مشتری در سفارش #${orderId}: ${messageText}`;
 
 
-        try {
+        /*
+         * ارسال Notification به تمام ادمین‌ها
+         */
+
+        for (const admin of admins) {
 
             /*
-             * Notification داخل دیتابیس
+             * ذخیره Notification در دیتابیس
              */
 
             await createNotificationQuery(
                 db,
                 {
-                    userId: order.userId,
+                    userId: admin.id,
                     orderId,
-                    title: "پیام جدید از پشتیبانی",
+                    title: "پیام جدید مشتری",
                     body: notificationBody,
                     type: "new_message"
                 }
@@ -191,36 +228,41 @@ orderMessages.post("/:id/messages", async (c) => {
 
 
             /*
-             * Push Notification
+             * ارسال Push با OneSignal
              */
 
             await sendNotificationPush(
                 db,
                 {
-                    userId: order.userId,
+                    userId: admin.id,
                     orderId,
-                    title: "پیام جدید از پشتیبانی",
+                    title: "پیام جدید مشتری",
                     body: notificationBody,
                     type: "new_message"
                 }
             );
 
-        } catch (error) {
-
-            /*
-             * خطای Notification نباید باعث شود
-             * پیام اصلی ادمین ناموفق اعلام شود.
-             */
-
-            console.error(
-                "Admin message notification error:",
-                error
-            );
-
         }
+
+
+    } catch (error) {
+
+        /*
+         * اگر Notification یا Push شکست خورد،
+         * پیام اصلی همچنان موفق محسوب می‌شود.
+         */
+
+        console.error(
+            "Customer message notification error:",
+            error
+        );
 
     }
 
+
+    /*
+     * پاسخ به فرانت‌اند
+     */
 
     return c.json({
 
@@ -229,7 +271,7 @@ orderMessages.post("/:id/messages", async (c) => {
         message: {
             ...createdMessage,
 
-            senderRole: "admin"
+            senderRole: "customer"
         }
 
     });

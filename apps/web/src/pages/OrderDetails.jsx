@@ -41,14 +41,6 @@ export default function OrderDetails() {
             setLoading(true);
             setError("");
 
-            /*
-             * Admin:
-             * GET /admin/orders/:id
-             *
-             * User:
-             * GET /orders/:id
-             */
-
             const endpoint = isAdmin
                 ? `/admin/orders/${id}`
                 : `/orders/${id}`;
@@ -65,10 +57,6 @@ export default function OrderDetails() {
             }
 
             setOrder(data.order || null);
-
-            /*
-             * اطلاعات مشتری فقط در پاسخ Admin
-             */
 
             setCustomer(
                 data.customer || null
@@ -114,13 +102,18 @@ export default function OrderDetails() {
 
 
     // =====================================================
-    // ارسال پیام توسط مشتری
+    // ارسال پیام
+    //
+    // Customer:
     // POST /orders/:id/messages
+    //
+    // Admin:
+    // POST /admin/orders/:id/messages
     // =====================================================
 
     async function sendMessage() {
 
-        if (isAdmin || !order) {
+        if (!order) {
             return;
         }
 
@@ -162,8 +155,17 @@ export default function OrderDetails() {
             setMessageLoading(true);
             setError("");
 
+            /*
+             * مسیر ارسال بر اساس نقش کاربر
+             */
+
+            const endpoint = isAdmin
+                ? `/admin/orders/${order.id}/messages`
+                : `/orders/${order.id}/messages`;
+
+
             const data = await api(
-                `/orders/${order.id}/messages`,
+                endpoint,
                 {
                     method: "POST",
 
@@ -185,7 +187,7 @@ export default function OrderDetails() {
 
 
             /*
-             * پیام جدید را بلافاصله به لیست اضافه می‌کنیم.
+             * پیام جدید را بلافاصله اضافه می‌کنیم.
              */
 
             if (data.message) {
@@ -202,22 +204,29 @@ export default function OrderDetails() {
 
 
             /*
-             * برای اطمینان از هماهنگ بودن اطلاعات
-             * دوباره سفارش را دریافت می‌کنیم.
-             *
-             * loading صفحه را در این مرحله نشان نمی‌دهیم.
+             * برای هماهنگ شدن کامل اطلاعات
+             * سفارش را دوباره دریافت می‌کنیم.
              */
 
-            const endpoint = isAdmin
+            const refreshedEndpoint = isAdmin
                 ? `/admin/orders/${id}`
                 : `/orders/${id}`;
 
-            const refreshed = await api(endpoint);
+
+            const refreshed =
+                await api(
+                    refreshedEndpoint
+                );
+
 
             if (refreshed.success) {
 
                 setOrder(
                     refreshed.order || null
+                );
+
+                setCustomer(
+                    refreshed.customer || null
                 );
 
                 setMessages(
@@ -1188,92 +1197,96 @@ export default function OrderDetails() {
 
 
                 {/* =================================================
-                    Customer message form
+                    Message form
                 ================================================= */}
 
-                {!isAdmin &&
-                    order.status === "processing" && (
+                {order.status === "processing" && (
+
+                    <div
+                        style={
+                            sendMessageBox
+                        }
+                    >
+
+                        <h3
+                            style={{
+                                marginTop: 0
+                            }}
+                        >
+                            {isAdmin
+                                ? "ارسال پیام به مشتری"
+                                : "ارسال پیام به پشتیبانی"
+                            }
+                        </h3>
+
+
+                        <textarea
+                            value={
+                                messageText
+                            }
+                            onChange={(e) =>
+                                setMessageText(
+                                    e.target.value
+                                )
+                            }
+                            placeholder={
+                                isAdmin
+                                    ? "پیام خود را برای مشتری وارد کنید..."
+                                    : "پیام خود را برای پشتیبانی وارد کنید..."
+                            }
+                            rows={4}
+                            maxLength={2000}
+                            disabled={
+                                messageLoading
+                            }
+                            style={
+                                messageTextarea
+                            }
+                        />
+
 
                         <div
                             style={
-                                sendMessageBox
+                                sendMessageFooter
                             }
                         >
 
-                            <h3
-                                style={{
-                                    marginTop: 0
-                                }}
+                            <span
+                                style={
+                                    characterCount
+                                }
                             >
-                                ارسال پیام
-                            </h3>
+                                {messageText.length}
+                                {" / "}
+                                ۲۰۰۰
+                            </span>
 
 
-                            <textarea
-                                value={
-                                    messageText
+                            <button
+                                onClick={
+                                    sendMessage
                                 }
-                                onChange={(e) =>
-                                    setMessageText(
-                                        e.target.value
-                                    )
-                                }
-                                placeholder={
-                                    "پیام خود را برای پشتیبانی وارد کنید..."
-                                }
-                                rows={4}
-                                maxLength={2000}
                                 disabled={
-                                    messageLoading
+                                    messageLoading ||
+                                    !messageText.trim()
                                 }
                                 style={
-                                    messageTextarea
-                                }
-                            />
-
-
-                            <div
-                                style={
-                                    sendMessageFooter
-                                }
-                            >
-
-                                <span
-                                    style={
-                                        characterCount
-                                    }
-                                >
-                                    {messageText.length}
-                                    {" / "}
-                                    ۲۰۰۰
-                                </span>
-
-
-                                <button
-                                    onClick={
-                                        sendMessage
-                                    }
-                                    disabled={
+                                    sendMessageButton(
                                         messageLoading ||
                                         !messageText.trim()
-                                    }
-                                    style={
-                                        sendMessageButton(
-                                            messageLoading ||
-                                            !messageText.trim()
-                                        )
-                                    }
-                                >
-                                    {messageLoading
-                                        ? "در حال ارسال..."
-                                        : "ارسال پیام"}
-                                </button>
-
-                            </div>
+                                    )
+                                }
+                            >
+                                {messageLoading
+                                    ? "در حال ارسال..."
+                                    : "ارسال پیام"}
+                            </button>
 
                         </div>
 
-                    )}
+                    </div>
+
+                )}
 
             </section>
 
@@ -1387,7 +1400,6 @@ function InfoItem({
         </div>
 
     );
-
 }
 
 
