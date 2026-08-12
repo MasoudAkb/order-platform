@@ -4,7 +4,6 @@ import { useAuth } from "../features/auth/AuthContext";
 import api from "../services/api";
 
 export default function OrderDetails() {
-
     const { id } = useParams();
     const navigate = useNavigate();
     const { user } = useAuth();
@@ -17,9 +16,6 @@ export default function OrderDetails() {
     const [messages, setMessages] = useState([]);
     const [history, setHistory] = useState([]);
 
-    const [messageText, setMessageText] = useState("");
-    const [messageSending, setMessageSending] = useState(false);
-
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState(false);
     const [messageLoading, setMessageLoading] = useState(false);
@@ -27,12 +23,16 @@ export default function OrderDetails() {
     const [error, setError] = useState("");
     const [rejectReason, setRejectReason] = useState("");
 
-    const [newMessage, setNewMessage] = useState("");
+    const [messageText, setMessageText] = useState("");
 
     const [showRejectBox, setShowRejectBox] = useState(false);
     const [completeMessage, setCompleteMessage] = useState("");
     const [showCompleteBox, setShowCompleteBox] = useState(false);
 
+
+    // =====================================================
+    // دریافت اطلاعات سفارش
+    // =====================================================
 
     async function loadOrder() {
 
@@ -113,12 +113,148 @@ export default function OrderDetails() {
     }, [id, user]);
 
 
-    /*
-     * =========================
-     * ADMIN ACTIONS
-     * =========================
-     */
+    // =====================================================
+    // ارسال پیام توسط مشتری
+    // POST /orders/:id/messages
+    // =====================================================
 
+    async function sendMessage() {
+
+        if (isAdmin || !order) {
+            return;
+        }
+
+        const text = messageText.trim();
+
+        if (!text) {
+
+            alert(
+                "لطفاً متن پیام را وارد کنید."
+            );
+
+            return;
+
+        }
+
+        if (text.length > 2000) {
+
+            alert(
+                "متن پیام نمی‌تواند بیشتر از ۲۰۰۰ کاراکتر باشد."
+            );
+
+            return;
+
+        }
+
+        if (order.status !== "processing") {
+
+            alert(
+                "در وضعیت فعلی سفارش امکان ارسال پیام وجود ندارد."
+            );
+
+            return;
+
+        }
+
+
+        try {
+
+            setMessageLoading(true);
+            setError("");
+
+            const data = await api(
+                `/orders/${order.id}/messages`,
+                {
+                    method: "POST",
+
+                    body: JSON.stringify({
+                        message: text
+                    })
+                }
+            );
+
+
+            if (!data.success) {
+
+                throw new Error(
+                    data.message ||
+                    "ارسال پیام انجام نشد"
+                );
+
+            }
+
+
+            /*
+             * پیام جدید را بلافاصله به لیست اضافه می‌کنیم.
+             */
+
+            if (data.message) {
+
+                setMessages((previous) => [
+                    ...previous,
+                    data.message
+                ]);
+
+            }
+
+
+            setMessageText("");
+
+
+            /*
+             * برای اطمینان از هماهنگ بودن اطلاعات
+             * دوباره سفارش را دریافت می‌کنیم.
+             *
+             * loading صفحه را در این مرحله نشان نمی‌دهیم.
+             */
+
+            const endpoint = isAdmin
+                ? `/admin/orders/${id}`
+                : `/orders/${id}`;
+
+            const refreshed = await api(endpoint);
+
+            if (refreshed.success) {
+
+                setOrder(
+                    refreshed.order || null
+                );
+
+                setMessages(
+                    refreshed.messages || []
+                );
+
+                setHistory(
+                    refreshed.history || []
+                );
+
+                setDetails(
+                    refreshed.details || null
+                );
+
+            }
+
+        } catch (err) {
+
+            console.error(err);
+
+            setError(
+                err.message ||
+                "خطا در ارسال پیام"
+            );
+
+        } finally {
+
+            setMessageLoading(false);
+
+        }
+
+    }
+
+
+    // =====================================================
+    // ADMIN ACTIONS
+    // =====================================================
 
     async function approveOrder() {
 
@@ -309,107 +445,13 @@ export default function OrderDetails() {
     }
 
 
-    /*
-     * =========================
-     * SEND MESSAGE
-     * =========================
-     */
+    // =====================================================
+    // Loading
+    // =====================================================
 
-    async function sendMessage() {
-
-        if (!isAdmin || !order) return;
-
-        const message = newMessage.trim();
-
-        if (!message) {
-
-            alert(
-                "لطفاً متن پیام را وارد کنید."
-            );
-
-            return;
-
-        }
-
-        try {
-
-            setMessageLoading(true);
-            setError("");
-
-            const data = await api(
-                `/admin/orders/${order.id}/messages`,
-                {
-                    method: "POST",
-
-                    body: JSON.stringify({
-                        message
-                    })
-                }
-            );
-
-            if (!data.success) {
-
-                throw new Error(
-                    data.message ||
-                    "ارسال پیام انجام نشد"
-                );
-
-            }
-
-            setNewMessage("");
-
-            /*
-             * اگر API پیام ایجاد شده را
-             * برگرداند، بدون درخواست مجدد
-             * آن را به لیست اضافه می‌کنیم.
-             */
-
-            if (data.message) {
-
-                setMessages(prev => [
-                    ...prev,
-                    data.message
-                ]);
-
-            } else {
-
-                /*
-                 * اگر API پیام را برنگرداند،
-                 * اطلاعات سفارش را دوباره می‌گیریم.
-                 */
-
-                await loadOrder();
-
-            }
-
-        } catch (err) {
-
-            console.error(err);
-
-            setError(
-                err.message ||
-                "خطا در ارسال پیام"
-            );
-
-        } finally {
-
-            setMessageLoading(false);
-
-        }
-
-    }
-
-
-    /*
-     * =========================
-     * LOADING
-     * =========================
-     */
-    
     if (loading) {
 
         return (
-
             <div style={page}>
 
                 <h3>
@@ -417,11 +459,14 @@ export default function OrderDetails() {
                 </h3>
 
             </div>
-
         );
 
     }
 
+
+    // =====================================================
+    // Error
+    // =====================================================
 
     if (error && !order) {
 
@@ -469,6 +514,10 @@ export default function OrderDetails() {
 
     }
 
+
+    // =====================================================
+    // UI
+    // =====================================================
 
     return (
 
@@ -528,9 +577,9 @@ export default function OrderDetails() {
             )}
 
 
-            {/* =========================
+            {/* =====================================================
                 ADMIN ACTIONS
-            ========================= */}
+            ===================================================== */}
 
             {isAdmin && (
 
@@ -543,7 +592,9 @@ export default function OrderDetails() {
                             <>
 
                                 <button
-                                    onClick={approveOrder}
+                                    onClick={
+                                        approveOrder
+                                    }
                                     disabled={
                                         actionLoading
                                     }
@@ -821,7 +872,9 @@ export default function OrderDetails() {
             )}
 
 
-            {/* Customer */}
+            {/* =====================================================
+                Customer
+            ===================================================== */}
 
             {isAdmin && (
 
@@ -864,7 +917,9 @@ export default function OrderDetails() {
             )}
 
 
-            {/* Order information */}
+            {/* =====================================================
+                Order information
+            ===================================================== */}
 
             <section style={card}>
 
@@ -951,7 +1006,9 @@ export default function OrderDetails() {
             </section>
 
 
-            {/* Reject reason */}
+            {/* =====================================================
+                Reject reason
+            ===================================================== */}
 
             {order.rejectReason && (
 
@@ -974,7 +1031,9 @@ export default function OrderDetails() {
             )}
 
 
-            {/* Order details */}
+            {/* =====================================================
+                Order details
+            ===================================================== */}
 
             {details && (
 
@@ -1015,9 +1074,9 @@ export default function OrderDetails() {
             )}
 
 
-            {/* =========================
+            {/* =====================================================
                 Messages
-            ========================= */}
+            ===================================================== */}
 
             <section style={card}>
 
@@ -1025,71 +1084,6 @@ export default function OrderDetails() {
                     پیام‌ها
                 </h2>
 
-
-                {/* Send message - Admin */}
-
-                {isAdmin && (
-
-                    <div style={sendMessageBox}>
-
-                        <textarea
-                            value={newMessage}
-                            onChange={(e) =>
-                                setNewMessage(
-                                    e.target.value
-                                )
-                            }
-                            placeholder="پیام خود را برای مشتری بنویسید..."
-                            rows={4}
-                            style={textarea}
-                            disabled={
-                                messageLoading
-                            }
-                        />
-
-
-                        <div
-                            style={{
-                                marginTop:
-                                    "10px",
-                                display:
-                                    "flex",
-                                justifyContent:
-                                    "flex-start"
-                            }}
-                        >
-
-                            <button
-                                onClick={
-                                    sendMessage
-                                }
-                                disabled={
-                                    messageLoading ||
-                                    !newMessage.trim()
-                                }
-                                style={{
-                                    ...sendMessageButton,
-
-                                    opacity:
-                                        messageLoading ||
-                                            !newMessage.trim()
-                                            ? 0.6
-                                            : 1
-                                }}
-                            >
-                                {messageLoading
-                                    ? "در حال ارسال..."
-                                    : "ارسال پیام"}
-                            </button>
-
-                        </div>
-
-                    </div>
-
-                )}
-
-
-                {/* Messages list */}
 
                 {messages.length === 0 ? (
 
@@ -1103,69 +1097,190 @@ export default function OrderDetails() {
                     <div>
 
                         {messages.map(
-                            (message) => (
+                            (message) => {
 
-                                <div
-                                    key={
-                                        message.id
-                                    }
-                                    style={
-                                        messageBox
-                                    }
-                                >
+                                const isMyMessage =
+                                    Number(
+                                        message.senderId
+                                    ) === Number(
+                                        user?.id
+                                    );
+
+
+                                const isAdminMessage =
+                                    message.senderRole ===
+                                    "admin";
+
+
+                                return (
 
                                     <div
+                                        key={
+                                            message.id
+                                        }
                                         style={
-                                            messageHeader
+                                            isMyMessage
+                                                ? myMessageBox
+                                                : messageBox
                                         }
                                     >
 
-                                        <strong>
-                                            {
-                                                message.senderName ||
-                                                message.sender ||
-                                                "پیام"
-                                            }
-                                        </strong>
-
-
-                                        <span
+                                        <div
                                             style={
-                                                muted
+                                                messageHeader
                                             }
                                         >
+
+                                            <strong>
+                                                {
+                                                    message.senderName ||
+                                                    message.sender ||
+                                                    (
+                                                        isAdminMessage
+                                                            ? "مدیریت"
+                                                            : "مشتری"
+                                                    )
+                                                }
+                                            </strong>
+
+
+                                            <span
+                                                style={
+                                                    muted
+                                                }
+                                            >
+                                                {
+                                                    formatDate(
+                                                        message.createdAt
+                                                    )
+                                                }
+                                            </span>
+
+                                        </div>
+
+
+                                        <p
+                                            style={{
+                                                margin:
+                                                    "8px 0 0 0",
+                                                whiteSpace:
+                                                    "pre-wrap"
+                                            }}
+                                        >
                                             {
-                                                formatDate(
-                                                    message.createdAt
-                                                )
+                                                message.message ||
+                                                message.body ||
+                                                message.content ||
+                                                "-"
                                             }
-                                        </span>
+                                        </p>
 
                                     </div>
 
+                                );
 
-                                    <p>
-                                        {
-                                            message.body ||
-                                            message.message ||
-                                            message.content ||
-                                            "-"
-                                        }
-                                    </p>
-
-                                </div>
-
-                            )
+                            }
                         )}
 
                     </div>
 
                 )}
 
+
+                {/* =================================================
+                    Customer message form
+                ================================================= */}
+
+                {!isAdmin &&
+                    order.status === "processing" && (
+
+                        <div
+                            style={
+                                sendMessageBox
+                            }
+                        >
+
+                            <h3
+                                style={{
+                                    marginTop: 0
+                                }}
+                            >
+                                ارسال پیام
+                            </h3>
+
+
+                            <textarea
+                                value={
+                                    messageText
+                                }
+                                onChange={(e) =>
+                                    setMessageText(
+                                        e.target.value
+                                    )
+                                }
+                                placeholder={
+                                    "پیام خود را برای پشتیبانی وارد کنید..."
+                                }
+                                rows={4}
+                                maxLength={2000}
+                                disabled={
+                                    messageLoading
+                                }
+                                style={
+                                    messageTextarea
+                                }
+                            />
+
+
+                            <div
+                                style={
+                                    sendMessageFooter
+                                }
+                            >
+
+                                <span
+                                    style={
+                                        characterCount
+                                    }
+                                >
+                                    {messageText.length}
+                                    {" / "}
+                                    ۲۰۰۰
+                                </span>
+
+
+                                <button
+                                    onClick={
+                                        sendMessage
+                                    }
+                                    disabled={
+                                        messageLoading ||
+                                        !messageText.trim()
+                                    }
+                                    style={
+                                        sendMessageButton(
+                                            messageLoading ||
+                                            !messageText.trim()
+                                        )
+                                    }
+                                >
+                                    {messageLoading
+                                        ? "در حال ارسال..."
+                                        : "ارسال پیام"}
+                                </button>
+
+                            </div>
+
+                        </div>
+
+                    )}
+
             </section>
 
 
-            {/* Status history */}
+            {/* =====================================================
+                Status history
+            ===================================================== */}
 
             <section style={card}>
 
@@ -1245,15 +1360,17 @@ export default function OrderDetails() {
         </div>
 
     );
-
 }
 
 
-/* -------------------------
-Components
-------------------------- */
+// =====================================================
+// Components
+// =====================================================
 
-function InfoItem({ title, value }) {
+function InfoItem({
+    title,
+    value
+}) {
 
     return (
 
@@ -1274,9 +1391,9 @@ function InfoItem({ title, value }) {
 }
 
 
-/* -------------------------
-Helpers
-------------------------- */
+// =====================================================
+// Helpers
+// =====================================================
 
 function getStatusText(status) {
 
@@ -1324,9 +1441,11 @@ function formatDate(value) {
 
     const date = new Date(value);
 
-    if (Number.isNaN(
-        date.getTime()
-    )) {
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
         return value;
     }
 
@@ -1337,9 +1456,9 @@ function formatDate(value) {
 }
 
 
-/* -------------------------
-Styles
-------------------------- */
+// =====================================================
+// Styles
+// =====================================================
 
 const page = {
 
@@ -1575,41 +1694,6 @@ const textarea = {
 };
 
 
-const sendMessageBox = {
-
-    marginBottom: "20px",
-
-    padding: "15px",
-
-    background: "#f8fafc",
-
-    borderRadius: "8px",
-
-    border:
-        "1px solid #e5e7eb"
-
-};
-
-
-const sendMessageButton = {
-
-    border: "none",
-
-    background: "#2563eb",
-
-    color: "#fff",
-
-    padding: "10px 18px",
-
-    borderRadius: "7px",
-
-    cursor: "pointer",
-
-    fontWeight: "600"
-
-};
-
-
 const errorBox = {
 
     background: "#fee2e2",
@@ -1684,7 +1768,25 @@ const messageBox = {
 
     borderRadius: "8px",
 
-    marginBottom: "10px"
+    marginBottom: "10px",
+
+    background: "#fff"
+
+};
+
+
+const myMessageBox = {
+
+    border:
+        "1px solid #bfdbfe",
+
+    padding: "12px",
+
+    borderRadius: "8px",
+
+    marginBottom: "10px",
+
+    background: "#eff6ff"
 
 };
 
@@ -1699,6 +1801,101 @@ const messageHeader = {
     marginBottom: "8px"
 
 };
+
+
+const sendMessageBox = {
+
+    marginTop: "20px",
+
+    padding: "18px",
+
+    border:
+        "1px solid #dbeafe",
+
+    borderRadius: "10px",
+
+    background: "#f8fafc"
+
+};
+
+
+const messageTextarea = {
+
+    width: "100%",
+
+    boxSizing: "border-box",
+
+    padding: "12px",
+
+    borderRadius: "8px",
+
+    border:
+        "1px solid #cbd5e1",
+
+    resize: "vertical",
+
+    fontFamily: "inherit",
+
+    fontSize: "14px",
+
+    minHeight: "100px"
+
+};
+
+
+const sendMessageFooter = {
+
+    display: "flex",
+
+    justifyContent:
+        "space-between",
+
+    alignItems: "center",
+
+    marginTop: "10px"
+
+};
+
+
+const characterCount = {
+
+    color: "#64748b",
+
+    fontSize: "13px"
+
+};
+
+
+function sendMessageButton(
+    disabled
+) {
+
+    return {
+
+        border: "none",
+
+        background:
+            disabled
+                ? "#94a3b8"
+                : "#2563eb",
+
+        color: "#fff",
+
+        padding:
+            "10px 18px",
+
+        borderRadius: "7px",
+
+        cursor:
+            disabled
+                ? "not-allowed"
+                : "pointer",
+
+        fontWeight: "600"
+
+    };
+
+}
 
 
 const historyItem = {

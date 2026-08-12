@@ -6,6 +6,7 @@ import { getDb } from "../database/db";
 import {
     users,
     orders,
+    messages,
     orderDetails,
     orderStatusHistory,
     servicePrices,
@@ -37,12 +38,16 @@ ordersRoute.post("/", async (c) => {
     let body;
 
     try {
+
         body = await c.req.json();
+
     } catch {
+
         return c.json({
             success: false,
             message: "Invalid JSON body"
         }, 400);
+
     }
 
 
@@ -59,10 +64,12 @@ ordersRoute.post("/", async (c) => {
 
 
     if (!serviceType) {
+
         return c.json({
             success: false,
             message: "Service type is required"
         }, 400);
+
     }
 
 
@@ -86,10 +93,12 @@ ordersRoute.post("/", async (c) => {
 
 
     if (!service) {
+
         return c.json({
             success: false,
             message: "Service not found"
         }, 404);
+
     }
 
 
@@ -105,13 +114,13 @@ ordersRoute.post("/", async (c) => {
 
     /*
      * ایجاد سفارش و جزئیات آن
-     * داخل یک transaction
      */
 
     const now = Date.now();
 
 
     try {
+
         const orderResult = await db
             .insert(orders)
             .values({
@@ -126,14 +135,19 @@ ordersRoute.post("/", async (c) => {
             })
             .returning();
 
+
         const order = orderResult[0];
+
 
         if (!order) {
             throw new Error("Failed to create order");
         }
 
+
         // ذخیره جزئیات اختصاصی سرویس
+
         if (details) {
+
             await db
                 .insert(orderDetails)
                 .values({
@@ -142,18 +156,27 @@ ordersRoute.post("/", async (c) => {
                     data: JSON.stringify(details),
                     createdAt: now,
                 });
+
         }
 
+
         // پیدا کردن ادمین‌ها
+
         const admins = await db
             .select()
             .from(users)
             .where(
-                eq(users.role, "admin")
+                eq(
+                    users.role,
+                    "admin"
+                )
             );
 
+
         // ساخت Notification برای ادمین‌ها
+
         for (const admin of admins) {
+
             await createNotificationQuery(
                 db,
                 {
@@ -164,12 +187,15 @@ ordersRoute.post("/", async (c) => {
                     type: "new_order",
                 }
             );
+
         }
+
 
         return c.json({
             success: true,
             order,
         });
+
 
     } catch (error) {
 
@@ -178,12 +204,14 @@ ordersRoute.post("/", async (c) => {
             error
         );
 
+
         return c.json({
             success: false,
             message:
                 error.message ||
                 "خطا در ایجاد سفارش",
         }, 500);
+
     }
 
 });
@@ -219,11 +247,9 @@ ordersRoute.get("/history", async (c) => {
 
     return c.json({
 
-        success:
-            true,
+        success: true,
 
-        orders:
-            result,
+        orders: result,
 
     });
 
@@ -242,21 +268,18 @@ ordersRoute.get("/:id", async (c) => {
     const user = c.get("user");
 
 
-    const orderId =
-        Number(
-            c.req.param("id")
-        );
+    const orderId = Number(
+        c.req.param("id")
+    );
 
 
     if (!Number.isInteger(orderId)) {
 
         return c.json({
 
-            success:
-                false,
+            success: false,
 
-            message:
-                "Invalid order id",
+            message: "Invalid order id",
 
         }, 400);
 
@@ -287,19 +310,16 @@ ordersRoute.get("/:id", async (c) => {
         );
 
 
-    const order =
-        result[0];
+    const order = result[0];
 
 
     if (!order) {
 
         return c.json({
 
-            success:
-                false,
+            success: false,
 
-            message:
-                "Order not found",
+            message: "Order not found",
 
         }, 404);
 
@@ -340,23 +360,59 @@ ordersRoute.get("/:id", async (c) => {
 
 
     /*
+     * پیام‌های سفارش
+     *
+     * پیام‌های ادمین و مشتری هر دو
+     * برای صاحب سفارش قابل مشاهده هستند.
+     */
+
+    const orderMessages = await db
+        .select({
+            id: messages.id,
+            orderId: messages.orderId,
+            senderId: messages.senderId,
+            message: messages.message,
+            createdAt: messages.createdAt,
+
+            senderName: users.name,
+            senderRole: users.role,
+        })
+        .from(messages)
+        .leftJoin(
+            users,
+            eq(
+                messages.senderId,
+                users.id
+            )
+        )
+        .where(
+            eq(
+                messages.orderId,
+                orderId
+            )
+        )
+        .orderBy(
+            messages.createdAt
+        );
+
+
+    /*
      * اطلاعات حساس سرویس را فعلاً
      * برای مشتری برنمی‌گردانیم.
-     *
-     * بعداً اگر لازم بود، endpoint
-     * جداگانه برای جزئیات طراحی می‌کنیم.
      */
+
 
     return c.json({
 
-        success:
-            true,
+        success: true,
 
         order,
 
         history,
 
         details,
+
+        messages: orderMessages,
 
     });
 
