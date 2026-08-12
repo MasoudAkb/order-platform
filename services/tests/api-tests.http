@@ -645,3 +645,6 @@ Content-Type: application/json
 {
   "message": "کد تأیید من 123456 است."
 }
+#########
+GET {{base}}/orders/21
+Authorization: Bearer {{userToken}}

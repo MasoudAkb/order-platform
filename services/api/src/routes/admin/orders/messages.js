@@ -1,20 +1,19 @@
 import { Hono } from "hono";
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
-import { getDb } from "../../database/db";
+import { getDb } from "../../../database/db";
 
 import {
-    users,
     orders,
     messages
-} from "../../database/schema";
+} from "../../../database/schema";
 
 import {
     createNotificationQuery,
     sendNotificationPush
-} from "../../utils/notification";
+} from "../../../utils/notification";
 
-import { authMiddleware } from "../../middleware/auth";
+import { authMiddleware } from "../../../middleware/auth";
 
 const orderMessages = new Hono();
 
@@ -22,8 +21,8 @@ orderMessages.use("*", authMiddleware);
 
 
 // =====================================================
-// ارسال پیام توسط مشتری
-// POST /orders/:id/messages
+// ارسال پیام توسط ادمین
+// POST /admin/orders/:id/messages
 // =====================================================
 
 orderMessages.post("/:id/messages", async (c) => {
@@ -33,7 +32,11 @@ orderMessages.post("/:id/messages", async (c) => {
     const user = c.get("user");
 
 
-    if (!user) {
+    // =================================================
+    // فقط ادمین
+    // =================================================
+
+    if (!user || user.role !== "admin") {
 
         return c.json({
             success: false,
@@ -42,6 +45,10 @@ orderMessages.post("/:id/messages", async (c) => {
 
     }
 
+
+    // =================================================
+    // Order ID
+    // =================================================
 
     const orderId = Number(
         c.req.param("id")
@@ -58,17 +65,17 @@ orderMessages.post("/:id/messages", async (c) => {
     }
 
 
-    /*
-     * فقط صاحب سفارش اجازه ارسال پیام دارد
-     */
+    // =================================================
+    // پیدا کردن سفارش
+    // =================================================
 
     const orderResult = await db
         .select()
         .from(orders)
         .where(
-            and(
-                eq(orders.id, orderId),
-                eq(orders.userId, user.id)
+            eq(
+                orders.id,
+                orderId
             )
         );
 
@@ -86,25 +93,9 @@ orderMessages.post("/:id/messages", async (c) => {
     }
 
 
-    /*
-     * کاربر فقط هنگام پردازش سفارش
-     * می‌تواند پیام ارسال کند.
-     */
-
-    if (order.status !== "processing") {
-
-        return c.json({
-            success: false,
-            message:
-                "در وضعیت فعلی سفارش امکان ارسال پیام وجود ندارد."
-        }, 400);
-
-    }
-
-
-    /*
-     * دریافت متن پیام
-     */
+    // =================================================
+    // دریافت متن پیام
+    // =================================================
 
     let body;
 
@@ -132,7 +123,8 @@ orderMessages.post("/:id/messages", async (c) => {
 
         return c.json({
             success: false,
-            message: "متن پیام نمی‌تواند خالی باشد."
+            message:
+                "متن پیام نمی‌تواند خالی باشد."
         }, 400);
 
     }
@@ -142,7 +134,8 @@ orderMessages.post("/:id/messages", async (c) => {
 
         return c.json({
             success: false,
-            message: "متن پیام بیش از حد طولانی است."
+            message:
+                "متن پیام بیش از حد طولانی است."
         }, 400);
 
     }
@@ -151,9 +144,9 @@ orderMessages.post("/:id/messages", async (c) => {
     const now = Date.now();
 
 
-    /*
-     * ثبت پیام در دیتابیس
-     */
+    // =================================================
+    // ثبت پیام
+    // =================================================
 
     const result = await db
         .insert(messages)
@@ -179,90 +172,100 @@ orderMessages.post("/:id/messages", async (c) => {
     }
 
 
-    // =====================================================
-    // Notification برای ادمین‌ها
-    // =====================================================
+    // =================================================
+    // Notification برای مشتری
+    // =================================================
 
     try {
 
-        /*
-         * پیدا کردن تمام ادمین‌ها
-         */
+        const customerId = order.userId;
 
-        const admins = await db
-            .select()
-            .from(users)
-            .where(
-                eq(users.role, "admin")
+
+        if (!customerId) {
+
+            console.error(
+                "Admin message notification error: order has no userId",
+                {
+                    orderId,
+                    order
+                }
             );
 
+        } else {
 
-        /*
-         * متن Notification
-         */
-
-        const notificationBody =
-            `پیام جدید مشتری در سفارش #${orderId}: ${messageText}`;
+            const notificationBody =
+                `پیام جدید از پشتیبانی در سفارش #${orderId}: ${messageText}`;
 
 
-        /*
-         * ارسال Notification به تمام ادمین‌ها
-         */
-
-        for (const admin of admins) {
-
-            /*
-             * ذخیره Notification در دیتابیس
-             */
+            // -----------------------------------------
+            // ذخیره Notification در دیتابیس
+            // -----------------------------------------
 
             await createNotificationQuery(
                 db,
                 {
-                    userId: admin.id,
+                    userId: customerId,
                     orderId,
-                    title: "پیام جدید مشتری",
+                    title: "پیام جدید از پشتیبانی",
                     body: notificationBody,
                     type: "new_message"
                 }
             );
 
 
-            /*
-             * ارسال Push با OneSignal
-             */
+            console.log(
+                "Customer notification created:",
+                {
+                    customerId,
+                    orderId
+                }
+            );
+
+
+            // -----------------------------------------
+            // ارسال Push با OneSignal
+            // -----------------------------------------
 
             await sendNotificationPush(
                 db,
                 {
-                    userId: admin.id,
+                    userId: customerId,
                     orderId,
-                    title: "پیام جدید مشتری",
+                    title: "پیام جدید از پشتیبانی",
                     body: notificationBody,
                     type: "new_message"
+                }
+            );
+
+
+            console.log(
+                "Customer push notification processed:",
+                {
+                    customerId,
+                    orderId
                 }
             );
 
         }
 
-
     } catch (error) {
 
         /*
-         * اگر Notification یا Push شکست خورد،
-         * پیام اصلی همچنان موفق محسوب می‌شود.
+         * خطای Notification یا Push نباید
+         * باعث شکست ارسال پیام اصلی شود.
          */
 
         console.error(
-            "Customer message notification error:",
+            "Admin message notification error:",
             error
         );
 
     }
 
 
-    /*
-     * پاسخ به فرانت‌اند
-     */
+    // =================================================
+    // پاسخ
+    // =================================================
 
     return c.json({
 
@@ -271,7 +274,7 @@ orderMessages.post("/:id/messages", async (c) => {
         message: {
             ...createdMessage,
 
-            senderRole: "customer"
+            senderRole: "admin"
         }
 
     });
