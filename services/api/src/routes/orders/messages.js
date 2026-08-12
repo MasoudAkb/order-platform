@@ -4,9 +4,15 @@ import { eq, and } from "drizzle-orm";
 import { getDb } from "../../database/db";
 
 import {
+    users,
     orders,
     messages
 } from "../../database/schema";
+
+import {
+    createNotificationQuery,
+    sendNotificationPush
+} from "../../utils/notification";
 
 import { authMiddleware } from "../../middleware/auth";
 
@@ -14,9 +20,10 @@ const orderMessages = new Hono();
 
 orderMessages.use("*", authMiddleware);
 
-
-// POST /orders/:id/messages
+// =====================================================
 // ارسال پیام توسط صاحب سفارش
+// POST /orders/:id/messages
+// =====================================================
 
 orderMessages.post("/:id/messages", async (c) => {
 
@@ -93,7 +100,21 @@ orderMessages.post("/:id/messages", async (c) => {
     }
 
 
-    const body = await c.req.json();
+    let body;
+
+    try {
+
+        body = await c.req.json();
+
+    } catch {
+
+        return c.json({
+            success: false,
+            message: "اطلاعات پیام نامعتبر است."
+        }, 400);
+
+    }
+
 
     const messageText =
         typeof body.message === "string"
@@ -124,6 +145,10 @@ orderMessages.post("/:id/messages", async (c) => {
     const now = Date.now();
 
 
+    /*
+     * ثبت پیام
+     */
+
     const result = await db
         .insert(messages)
         .values({
@@ -135,12 +160,98 @@ orderMessages.post("/:id/messages", async (c) => {
         .returning();
 
 
+    const createdMessage = result[0];
+
+
+    if (!createdMessage) {
+
+        return c.json({
+            success: false,
+            message: "ثبت پیام انجام نشد."
+        }, 500);
+
+    }
+
+
+    /*
+     * پیدا کردن ادمین‌ها
+     */
+
+    const admins = await db
+        .select()
+        .from(users)
+        .where(
+            eq(users.role, "admin")
+        );
+
+
+    /*
+     * ساخت Notification و ارسال Push
+     * برای تمام ادمین‌ها
+     */
+
+    const notificationBody =
+        `پیام جدید در سفارش #${orderId}: ${messageText}`;
+
+
+    for (const admin of admins) {
+
+        try {
+
+            /*
+             * Notification داخل دیتابیس
+             */
+
+            await createNotificationQuery(
+                db,
+                {
+                    userId: admin.id,
+                    orderId,
+                    title: "پیام جدید مشتری",
+                    body: notificationBody,
+                    type: "new_message"
+                }
+            );
+
+
+            /*
+             * Push Notification
+             */
+
+            await sendNotificationPush(
+                db,
+                {
+                    userId: admin.id,
+                    orderId,
+                    title: "پیام جدید مشتری",
+                    body: notificationBody,
+                    type: "new_message"
+                }
+            );
+
+        } catch (error) {
+
+            /*
+             * خطای Notification نباید باعث شود
+             * پیام اصلی کاربر ناموفق اعلام شود.
+             */
+
+            console.error(
+                "Customer message notification error:",
+                error
+            );
+
+        }
+
+    }
+
+
     return c.json({
 
         success: true,
 
         message: {
-            ...result[0],
+            ...createdMessage,
 
             senderRole: "customer"
         }

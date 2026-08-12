@@ -1,22 +1,28 @@
 import { Hono } from "hono";
 import { eq, and } from "drizzle-orm";
 
-import { getDb } from "../../database/db";
+import { getDb } from "../../../database/db";
 
 import {
     orders,
     messages
-} from "../../database/schema";
+} from "../../../database/schema";
 
-import { authMiddleware } from "../../middleware/auth";
+import {
+    createNotificationQuery,
+    sendNotificationPush
+} from "../../../utils/notification";
+
+import { authMiddleware } from "../../../middleware/auth";
 
 const orderMessages = new Hono();
 
 orderMessages.use("*", authMiddleware);
 
-
-// POST /orders/:id/messages
-// ارسال پیام توسط صاحب سفارش
+// =====================================================
+// ارسال پیام توسط ادمین
+// POST /admin/orders/:id/messages
+// =====================================================
 
 orderMessages.post("/:id/messages", async (c) => {
 
@@ -24,7 +30,12 @@ orderMessages.post("/:id/messages", async (c) => {
 
     const user = c.get("user");
 
-    if (!user) {
+
+    /*
+     * فقط ادمین اجازه ارسال پیام دارد
+     */
+
+    if (!user || user.role !== "admin") {
 
         return c.json({
             success: false,
@@ -49,14 +60,15 @@ orderMessages.post("/:id/messages", async (c) => {
     }
 
 
+    /*
+     * پیدا کردن سفارش
+     */
+
     const orderResult = await db
         .select()
         .from(orders)
         .where(
-            and(
-                eq(orders.id, orderId),
-                eq(orders.userId, user.id)
-            )
+            eq(orders.id, orderId)
         );
 
 
@@ -74,22 +86,24 @@ orderMessages.post("/:id/messages", async (c) => {
 
 
     /*
-     * فعلاً فقط هنگام پردازش سفارش
-     * کاربر اجازه ارسال پیام دارد.
+     * دریافت متن پیام
      */
 
-    if (order.status !== "processing") {
+    let body;
+
+    try {
+
+        body = await c.req.json();
+
+    } catch {
 
         return c.json({
             success: false,
-            message:
-                "در وضعیت فعلی سفارش امکان ارسال پیام وجود ندارد."
+            message: "اطلاعات پیام نامعتبر است."
         }, 400);
 
     }
 
-
-    const body = await c.req.json();
 
     const messageText =
         typeof body.message === "string"
@@ -120,6 +134,10 @@ orderMessages.post("/:id/messages", async (c) => {
     const now = Date.now();
 
 
+    /*
+     * ثبت پیام
+     */
+
     const result = await db
         .insert(messages)
         .values({
@@ -131,14 +149,87 @@ orderMessages.post("/:id/messages", async (c) => {
         .returning();
 
 
+    const createdMessage = result[0];
+
+
+    if (!createdMessage) {
+
+        return c.json({
+            success: false,
+            message: "ثبت پیام انجام نشد."
+        }, 500);
+
+    }
+
+
+    /*
+     * Notification برای صاحب سفارش
+     */
+
+    if (order.userId) {
+
+        const notificationBody =
+            `پیام جدید از پشتیبانی در سفارش #${orderId}: ${messageText}`;
+
+
+        try {
+
+            /*
+             * Notification داخل دیتابیس
+             */
+
+            await createNotificationQuery(
+                db,
+                {
+                    userId: order.userId,
+                    orderId,
+                    title: "پیام جدید از پشتیبانی",
+                    body: notificationBody,
+                    type: "new_message"
+                }
+            );
+
+
+            /*
+             * Push Notification
+             */
+
+            await sendNotificationPush(
+                db,
+                {
+                    userId: order.userId,
+                    orderId,
+                    title: "پیام جدید از پشتیبانی",
+                    body: notificationBody,
+                    type: "new_message"
+                }
+            );
+
+        } catch (error) {
+
+            /*
+             * خطای Notification نباید باعث شود
+             * پیام اصلی ادمین ناموفق اعلام شود.
+             */
+
+            console.error(
+                "Admin message notification error:",
+                error
+            );
+
+        }
+
+    }
+
+
     return c.json({
 
         success: true,
 
         message: {
-            ...result[0],
+            ...createdMessage,
 
-            senderRole: "customer"
+            senderRole: "admin"
         }
 
     });
